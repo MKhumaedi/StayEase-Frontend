@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Dynamic global custom overrides for dark mode components */
+html.dark .bg-white {
+  background-color: #1e293b !important; /* bg-slate-800 */
+}
+html.dark .text-slate-800 {
+  color: #f1f5f9 !important; /* text-slate-100 */
+}
+html.dark .text-indigo-950, html.dark h1, html.dark h2, html.dark h3, html.dark h4 {
+  color: #f8fafc !important; /* text-slate-50 */
+}
+html.dark .border-slate-100, html.dark .border-slate-150 {
+  border-color: #334155 !important; /* border-slate-700 */
+}
+html.dark .bg-slate-50, html.dark .bg-slate-50\/50, html.dark .bg-slate-50\/10 {
+  background-color: #1e293b !important;
+}
+html.dark select, html.dark input {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+html.dark select option {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
