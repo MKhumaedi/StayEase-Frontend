@@ -198,7 +198,7 @@ MIDTRANS_CLIENT_KEY=
 
 ### Dashboard
 
-(https://snipboard.io/DTyetm.jpg)
+[![alt text](https://snipboard.io/DTyetm.jpg)]
 > ![Dashboard for monitoring reservations, occupancy, revenue, and operational activities.]
 
 ### Booking Management
@@ -208,12 +208,12 @@ MIDTRANS_CLIENT_KEY=
 
 ### Finance
 
-https://snipboard.io/FX8qZS.jpg
+[![alt text](https://snipboard.io/FX8qZS.jpg)]
 > Payment settlement, revenue tracking, and transaction management.
 
 ### Operations
 
-https://snipboard.io/vMEKy9.jpg
+[![alt text](https://snipboard.io/vMEKy9.jpg)]
 > Daily Check-In, Check-Out, and Staying Guest management.
 
 ---
