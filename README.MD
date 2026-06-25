@@ -91,7 +91,7 @@ A modern Property Management System (PMS) built to simplify hotel, villa, apartm
 ## Deployment
 
 - Vercel (Frontend)
-- Node.js Server (Backend)
+- Railway (Backend)
 
 ---
 
@@ -111,7 +111,7 @@ StayEase
 │   ├── routes
 │   ├── controllers
 │   └── package.json
-│
+│   
 └── README.md
 ```
 
@@ -122,7 +122,7 @@ StayEase
 ## Clone Repository
 
 ```bash
-git clone https://github.com/USERNAME/StayEase.git
+git clone https://github.com/MKhumaedi/StayEase-Frontend.git
 ```
 
 ## Frontend
