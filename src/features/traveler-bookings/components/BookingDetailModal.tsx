@@ -49,15 +49,16 @@ function ModalBody({ booking, formatCurrency }: { booking: TravelerBooking; form
 }
 
 function PropertySection({ booking }: { booking: TravelerBooking }) {
-  const imgUrl = booking.property.imageUrls?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
+  const property = booking.property || { imageUrls: [], name: 'StayEase Elite Stay', city: 'Indonesia' };
+  const imgUrl = property.imageUrls?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
   return (
     <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/30">
       <h4 className="font-bold text-indigo-950 mb-3 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">Akomodasi</h4>
       <div className="flex gap-3">
-        <img src={imgUrl} alt={booking.property.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 animate-fade-in" referrerPolicy="no-referrer" />
+        <img src={imgUrl} alt={property.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 animate-fade-in" referrerPolicy="no-referrer" />
         <div>
-          <p className="font-bold text-slate-800 text-sm font-display">{booking.property.name}</p>
-          <p className="text-slate-500 font-semibold flex items-center gap-1 mt-0.5"><MapPin className="w-3.5 h-3.5 text-indigo-600" /> {booking.property.city}</p>
+          <p className="font-bold text-slate-800 text-sm font-display">{property.name}</p>
+          <p className="text-slate-500 font-semibold flex items-center gap-1 mt-0.5"><MapPin className="w-3.5 h-3.5 text-indigo-600" /> {property.city || 'Indonesia'}</p>
           <p className="text-slate-505 font-bold mt-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded w-fit text-[10px]">{booking.room?.name || 'Standard Package Suite'}</p>
         </div>
       </div>

@@ -43,6 +43,15 @@ export default function TenantBookings() {
 
   useEffect(() => {
     fetchBookings();
+    const interval = setInterval(() => {
+      fetch('/api/bookings')
+        .then(res => res.json())
+        .then(data => {
+          setBookings(data.data || []);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdateStatus = async (id: string, status: string) => {

@@ -45,6 +45,20 @@ export function useTravelerBookings(token: string | null) {
     loadStats();
   }, [loadData, loadStats]);
 
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      travelerBookingsService.fetchBookings(token, filters).then(res => {
+        setData(res.data || []);
+        setTotal(res.total || 0);
+      }).catch(() => {});
+      travelerBookingsService.fetchStats(token).then(statsObj => {
+        setStats(statsObj);
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [token, filters]);
+
   const changeFilter = useCallback((field: keyof BookingFilters, val: any) => {
     setFilters(prev => ({ ...prev, [field]: val, page: field === 'page' ? val : 1 }));
   }, []);

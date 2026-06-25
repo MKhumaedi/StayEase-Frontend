@@ -60,6 +60,16 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
   useEffect(() => {
     fetchPayments();
+    const interval = setInterval(() => {
+      const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+      fetch('/api/tenant/payments', { headers: authHeader })
+        .then(res => res.json())
+        .then((data) => {
+          setBookings(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const handleAction = async (endpoint: string, method = 'POST', body?: any) => {
@@ -110,11 +120,11 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
   const midtransTotal = midtransBookings
     .filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-    .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
   const manualTotal = manualBookings
-    .filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED' || b.paymentProof?.proofUrl?.includes('APPROVED'))
-    .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    .filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
+    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
 
   const pendingManualReviewCount = bookings.filter(b => {
     const proof = parseProof(b.paymentProof?.proofUrl);
@@ -274,9 +284,22 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                   <tbody className="divide-y divide-slate-50 font-semibold text-slate-650">
                     {midtransBookings.map((b, idx) => {
                       const proofUrl = b.paymentProof?.proofUrl || '';
-                      const midtransId = proofUrl.includes('midtrans://') 
-                        ? proofUrl.replace('midtrans://', '') 
-                        : 'SNAP-TRX-' + b.bookingCode;
+                      let midtransId = 'SNAP-TRX-' + b.bookingCode;
+                      if (proofUrl) {
+                        if (proofUrl.trim().startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(proofUrl);
+                            const url = parsed.url || '';
+                            if (url.includes('midtrans://')) {
+                              midtransId = url.replace('midtrans://', '');
+                            } else if (parsed.id) {
+                              midtransId = parsed.id;
+                            }
+                          } catch {}
+                        } else if (proofUrl.includes('midtrans://')) {
+                          midtransId = proofUrl.replace('midtrans://', '');
+                        }
+                      }
                       return (
                         <tr key={`${b.id}-${idx}`} className="hover:bg-slate-50/50">
                           <td className="p-3 font-bold text-slate-800">
@@ -342,7 +365,9 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
                     {manualBookings.map((b, idx) => {
                       const proof = parseProof(b.paymentProof?.proofUrl);
-                      const isPending = proof.status === 'PENDING' && b.status === 'WAITING_CONFIRMATION';
+                      const isPending = b.status === 'WAITING_CONFIRMATION';
+                      const isApproved = b.status === 'CONFIRMED' || b.status === 'COMPLETED';
+                      const isRejected = b.status === 'WAITING_PAYMENT' && proof.status === 'REJECTED';
                       return (
                         <tr key={`${b.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
                           <td className="p-3 font-bold text-slate-800">{b.bookingCode}</td>
@@ -379,11 +404,11 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                                 </>
                               ) : (
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                  proof.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                                  proof.status === 'REJECTED' ? 'bg-rose-105 text-rose-800' : 'bg-amber-100 text-amber-800'
+                                  isApproved ? 'bg-emerald-100 text-emerald-800' :
+                                  isRejected ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
                                 }`}>
-                                  {proof.status === 'APPROVED' ? (en ? 'Approved' : 'Disetujui') :
-                                   proof.status === 'REJECTED' ? (en ? 'Rejected' : 'Ditolak') : (en ? 'Pending' : 'Diproses')}
+                                  {isApproved ? (en ? 'Approved' : 'Disetujui') :
+                                   isRejected ? (en ? 'Rejected' : 'Ditolak') : (en ? 'Pending' : 'Diproses')}
                                 </span>
                               )}
                             </div>
@@ -518,43 +543,54 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-150 text-slate-500 font-black tracking-wider uppercase text-[9px]">
-                      <th className="p-3">Receipt Invoice</th>
-                      <th className="p-3">Reference</th>
-                      <th className="p-3">Date Completed</th>
-                      <th className="p-3">Payer Details</th>
-                      <th className="p-3">Revenue Method</th>
-                      <th className="p-3 text-right">Total Invoice</th>
+                      <th className="p-3">Booking Code</th>
+                      <th className="p-3">Property</th>
+                      <th className="p-3">Guest</th>
+                      <th className="p-3">Payment Method</th>
+                      <th className="p-3">Provider</th>
+                      <th className="p-3">Amount</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-right">Paid At</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
                     {bookings.map((b, idx) => {
                       const proof = parseProof(b.paymentProof?.proofUrl);
                       const isMidtr = b.paymentProof?.proofUrl?.includes('midtrans');
-                      const completedState = b.status === 'CONFIRMED' || b.status === 'COMPLETED' || proof.status === 'APPROVED';
+                      const payMethod = isMidtr ? 'Midtrans' : b.paymentProof ? 'Manual' : 'None';
+                      const payProvider = isMidtr ? 'SNAP Online' : b.paymentProof ? 'Bank Transfer' : '-';
+                      const paidAtTime = b.paymentProof?.createdAt 
+                        ? new Date(b.paymentProof.createdAt).toLocaleString() 
+                        : (b.status === 'CONFIRMED' || b.status === 'COMPLETED') 
+                          ? new Date(b.updatedAt).toLocaleString() 
+                          : '-';
                       return (
                         <tr key={`${b.id}-${idx}`} className="hover:bg-slate-55/50 transition-colors">
-                          <td className="p-3 font-bold text-slate-800">
-                            <span className="flex items-center gap-1.5">
-                              <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
-                              INV-{b.bookingCode}
-                            </span>
-                          </td>
-                          <td className="p-3">{b.bookingCode}</td>
-                          <td className="p-3">{new Date(b.endDate).toLocaleDateString()}</td>
+                          <td className="p-3 font-bold text-slate-800">{b.bookingCode}</td>
+                          <td className="p-3 text-slate-700">{b.property?.name ?? 'StayEase Listing'}</td>
                           <td className="p-3">
                             <div className="font-bold text-slate-800">{b.guestName}</div>
                             <span className="text-[9px] text-slate-400 font-normal">{b.guestEmail}</span>
                           </td>
                           <td className="p-3">
-                            {isMidtr ? (
-                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[9px] font-black uppercase tracking-wider">MIDTRANS ONLINE</span>
-                            ) : b.paymentProof ? (
-                              <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase tracking-wider">MANUAL TRANSFER</span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded text-[9px] font-black uppercase tracking-wider">UNPAID</span>
-                            )}
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                              payMethod === 'Midtrans' ? 'bg-emerald-50 text-emerald-700' :
+                              payMethod === 'Manual' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-50 text-slate-500'
+                            }`}>
+                              {payMethod}
+                            </span>
                           </td>
-                          <td className="p-3 text-right text-indigo-950 font-extrabold">{formatCurrencyIDR(b.totalAmount)}</td>
+                          <td className="p-3 text-slate-600">{payProvider}</td>
+                          <td className="p-3 text-indigo-950 font-extrabold">{formatCurrencyIDR(b.totalAmount)}</td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              b.status === 'CONFIRMED' || b.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                              b.status === 'CANCELLED' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {b.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right text-slate-500 font-normal">{paidAtTime}</td>
                         </tr>
                       );
                     })}

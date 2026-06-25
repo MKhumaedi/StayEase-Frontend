@@ -34,7 +34,8 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
   const en = language === 'en';
 
   useEffect(() => {
-    const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+    // Use undefined when there is no token so HeadersInit typing matches fetch signature
+    const authHeader: HeadersInit | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
 
     fetch('/api/reports', { headers: authHeader })
       .then(res => res.json())
@@ -45,6 +46,19 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
       .then(res => res.json())
       .then(data => setBookings(data.data || []))
       .catch(err => console.error(err));
+
+    const interval = setInterval(() => {
+      fetch('/api/reports', { headers: authHeader })
+        .then(res => res.json())
+        .then(data => setReports(data))
+        .catch(() => {});
+      fetch('/api/bookings', { headers: authHeader })
+        .then(res => res.json())
+        .then(data => setBookings(data.data || []))
+        .catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [token]);
 
   // Handle fallback navigation for embedded components

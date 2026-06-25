@@ -26,11 +26,12 @@ export function BookingCard({ booking, onDetail, onReview, formatCurrency }: Pro
 }
 
 function BookingImage({ bk }: { bk: TravelerBooking }) {
-  const imgUrl = bk.property.imageUrls?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
+  const prop = bk.property || { imageUrls: [], name: 'StayEase Property' };
+  const imgUrl = prop.imageUrls?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
   return (
     <img
       src={imgUrl}
-      alt={bk.property.name}
+      alt={prop.name}
       className="w-24 h-24 rounded-lg object-cover flex-shrink-0 animate-fade-in border border-slate-100"
       referrerPolicy="no-referrer"
     />
@@ -38,9 +39,10 @@ function BookingImage({ bk }: { bk: TravelerBooking }) {
 }
 
 function BookingMainInfo({ bk, formatCurrency }: { bk: TravelerBooking; formatCurrency: (val: number) => string }) {
+  const propName = bk.property?.name || 'StayEase Elite Stay';
   return (
     <div className="space-y-1.5 font-semibold text-slate-600">
-      <h3 className="text-sm font-bold text-indigo-950 font-display leading-tight">{bk.property.name}</h3>
+      <h3 className="text-sm font-bold text-indigo-950 font-display leading-tight">{propName}</h3>
       <p className="text-slate-500 text-[11px] font-bold">{bk.room?.name || 'Standard Package Suite'}</p>
       <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] mt-1 pl-0.5">
         <span>{bk.bookingCode}</span> • <span>{bk.guestCount} Tamu</span> • <span>{bk.nights} Malam</span>
@@ -83,8 +85,15 @@ function ActionButtons({ bk, onDetail, onReview }: { bk: TravelerBooking; onDeta
 
   return (
     <div className="flex gap-2 flex-wrap justify-end">
-      <button onClick={() => onDetail(bk)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-700 bg-white font-bold cursor-pointer transition-colors">Detail</button>
+      <button onClick={() => onDetail(bk)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-700 bg-white font-bold cursor-pointer transition-colors">
+        {bk.status === 'CONFIRMED' ? 'View Reservation' : 'Detail'}
+      </button>
       {isPending && <a href={payUrl} className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold transition-colors">Bayar / Unggah Bukti</a>}
+      {bk.status === 'CONFIRMED' && (
+        <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-bold text-xs">
+          Reservation Confirmed
+        </span>
+      )}
       <DownloadInvoiceButton bookingId={bk.id} status={bk.status} />
       {showReview && <button onClick={() => onReview(bk)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold cursor-pointer transition-colors flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-current" /> Tulis Review</button>}
       {(bk.status === 'COMPLETED' || isOver) && <a href={rebookUrl} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-950 font-bold rounded-lg transition-colors">Pesan Lagi</a>}

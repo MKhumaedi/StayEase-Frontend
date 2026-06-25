@@ -130,7 +130,8 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
 
       // Check validation constraints
       // Expired booking: AUTO_EXPIRED or if checkout date is passed
-      const todayStr = new Date().toISOString().split('T')[0];
+      const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
+      const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
       if (booking.status === 'AUTO_EXPIRED' || todayStr > booking.endDate) {
         throw new Error(language === 'en' ? "Reservation already expired." : "Pemesanan sudah kedaluwarsa.");
       }
@@ -249,7 +250,8 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     }
   }, [showScanner, permissionState, scannedBookingData]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
+  const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
 
   // Filter: status === 'CONFIRMED' and startDate === todayStr
   const filteredBookings = bookings.filter(b => {
@@ -777,7 +779,8 @@ export function renderBookingDetailModal(booking: any, onClose: () => void, lang
   // Checked-In (checkedInAt field match)
   // Checked-Out (checkedOutAt field match)
   // Completed (status = COMPLETED / CHECKED_OUT etc)
-  const todayStr = new Date().toISOString().split('T')[0];
+  const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
+  const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
   const isLateCheckOut = booking.status === 'CHECKED_IN' && todayStr > booking.endDate;
 
   const steps = [

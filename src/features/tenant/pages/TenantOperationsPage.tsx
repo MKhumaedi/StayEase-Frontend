@@ -18,12 +18,13 @@ import {
   Clock 
 } from 'lucide-react';
 import TodayCheckInPage from './TodayCheckInPage';
+import TodayStayingPage from './TodayStayingPage';
 import TodayCheckOutPage from './TodayCheckOutPage';
 import TenantReviews from './TenantReviews';
 
 interface OperationsProps {
   onNavigate: (p: string) => void;
-  initialTab?: 'check-in' | 'check-out' | 'reviews' | 'housekeeping' | 'maintenance';
+  initialTab?: 'check-in' | 'staying' | 'check-out' | 'reviews' | 'housekeeping' | 'maintenance';
 }
 
 interface HousekeepingTask {
@@ -50,7 +51,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
   const { language } = useLanguage();
   const en = language === 'en';
 
-  const [activeTab, setActiveTab] = useState<'check-in' | 'check-out' | 'reviews' | 'housekeeping' | 'maintenance'>(initialTab || 'check-in');
+  const [activeTab, setActiveTab] = useState<'check-in' | 'staying' | 'check-out' | 'reviews' | 'housekeeping' | 'maintenance'>(initialTab || 'check-in');
 
   useEffect(() => {
     if (initialTab) {
@@ -228,6 +229,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
       <div className="flex bg-slate-105 bg-slate-100 p-1 rounded-2xl w-full lg:w-fit self-center border border-slate-200/50 overflow-x-auto text-[11px] font-bold">
         {[
           { id: 'check-in', name: en ? 'Check-In Today' : 'Check-In Hari Ini', icon: UserCheck },
+          { id: 'staying', name: en ? 'Guest Staying' : 'Tamu Menginap', icon: ClipboardList },
           { id: 'check-out', name: en ? 'Check-Out Today' : 'Check-Out Hari Ini', icon: LogOut },
           { id: 'reviews', name: en ? 'Guest Reviews' : 'Ulasan Tamu', icon: Star },
           { id: 'housekeeping', name: en ? 'Housekeeping Status' : 'Penyiapan & Pembersihan', icon: Sparkles },
@@ -257,6 +259,12 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
         {activeTab === 'check-in' && (
           <div className="p-3">
             <TodayCheckInPage onNavigate={onNavigate} />
+          </div>
+        )}
+
+        {activeTab === 'staying' && (
+          <div className="p-3">
+            <TodayStayingPage onNavigate={onNavigate} />
           </div>
         )}
 

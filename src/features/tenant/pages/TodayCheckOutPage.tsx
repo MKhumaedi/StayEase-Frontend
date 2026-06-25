@@ -43,13 +43,17 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
     loadBookings();
   }, [token]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const tzOffset = new Date().getTimezoneOffset() * 60000;
+  const todayStr = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
 
-  // Filters: status === 'CHECKED_IN' (all checked-in stays, but highlight today's departures or late checkouts)
+  // Filters: status === 'CHECKED_IN' (only guests leaving today or late checkouts)
   const filteredBookings = bookings.filter(b => {
-    // Show staying guests who are scheduled to leave today OR are overdue (late checkout)
     const matchesCheckedIn = b.status === 'CHECKED_IN';
     if (!matchesCheckedIn) return false;
+
+    const isTodayDeparture = b.endDate === todayStr;
+    const isLateCheckOut = todayStr > b.endDate;
+    if (!isTodayDeparture && !isLateCheckOut) return false;
 
     if (searchQuery) {
       const field = (b.guestName + ' ' + b.bookingCode + ' ' + (b.property?.name || '')).toLowerCase();
