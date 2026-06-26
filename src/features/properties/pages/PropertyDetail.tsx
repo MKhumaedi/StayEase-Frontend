@@ -8,6 +8,7 @@ import {
 import { useLanguage } from '../../../shared/i18n';
 import { useWishlist } from '../../../shared/context/WishlistContext';
 import { PricingService } from '../services/PricingService';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 function getAmenityIcon(name: string) {
   const norm = name.toLowerCase();
@@ -99,6 +100,18 @@ export default function PropertyDetail({ propertyId, onNavigate }: PropertyDetai
   const [reviewPage, setReviewPage] = useState(1);
   const [totalReviews, setTotalReviews] = useState(0);
   const [averageRating, setAverageRating] = useState(5.0);
+
+  const propertyTitle = data?.property ? data.property.name : '';
+  const propertyDesc = data?.property ? data.property.description : '';
+  const propertyImage = data?.property && data.property.imageUrls && data.property.imageUrls.length > 0 ? data.property.imageUrls[0] : '';
+  const propertyUrl = data?.property ? `https://stay-ease-frontend-nu.vercel.app/property/${data.property.slug || data.property.id}` : '';
+
+  useDocumentMetadata({
+    title: propertyTitle,
+    description: propertyDesc,
+    image: propertyImage,
+    url: propertyUrl,
+  });
 
   const { user, token } = useAuth();
   const [replyingReviewId, setReplyingReviewId] = useState<string | null>(null);

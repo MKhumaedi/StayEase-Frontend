@@ -7,6 +7,7 @@ import { Step1Form } from '../components/Step1Form';
 import { CheckoutSummary } from '../components/CheckoutSummary';
 import { PaymentModeSelection } from '../components/PaymentModeSelection';
 import { VerificationPending } from '../components/VerificationPending';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 interface CheckoutProps {
   params: {
@@ -23,6 +24,13 @@ interface CheckoutProps {
 export default function Checkout({ params, onNavigate }: CheckoutProps) {
   const { t, language, formatCurrencyIDR } = useLanguage();
   const { user, token } = useAuth();
+
+  useDocumentMetadata({
+    title: language === 'en' ? 'Checkout' : 'Selesaikan Pemesanan',
+    description: language === 'en'
+      ? 'Complete your booking reservation securely on StayEase.'
+      : 'Selesaikan pemesanan akomodasi Anda dengan aman di StayEase.'
+  });
   const [step, setStep] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
   const [paymentMode, setPaymentMode] = useState<'midtrans' | 'manual'>('midtrans');

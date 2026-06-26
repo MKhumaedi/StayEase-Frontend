@@ -8,10 +8,18 @@ import PricingBreakdownSection from '../components/PricingBreakdownSection';
 import TimelineSection from '../components/TimelineSection';
 import PaymentAuditPanel from '../components/PaymentAuditPanel';
 import OperationalControls from '../components/OperationalControls';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 export default function BookingDetail({ id, onNavigate }: { id: string; onNavigate: (p: string) => void }) {
   const { user, token } = useAuth();
   const { language } = useLanguage();
+
+  useDocumentMetadata({
+    title: language === 'en' ? `Booking Invoice #${id}` : `Faktur Pemesanan #${id}`,
+    description: language === 'en'
+      ? `View details and invoice for booking confirmation #${id} on StayEase.`
+      : `Lihat detail dan faktur untuk konfirmasi pemesanan #${id} di StayEase.`
+  });
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +28,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
 
   const fetchDetail = () => {
     setLoading(true);
-    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`/api/bookings/${id}`, { headers })
       .then(res => res.json())
       .then(data => {
@@ -69,7 +77,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
 
   useEffect(() => {
     if (booking?.status !== 'WAITING_PAYMENT') return;
-    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     const interval = setInterval(() => syncAndPollDetail(headers), 4000);
     return () => clearInterval(interval);
   }, [id, token, booking?.status]);
@@ -77,7 +85,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
   const fetchSnapToken = async () => {
     const res = await fetch('/api/payments/midtrans/create-transaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ bookingId: id })
     });
     const data = await res.json();
@@ -108,7 +116,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
   };
 
   const updateStatus = (status: string) => {
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
     fetch(`/api/bookings/${id}/status`, {
       method: 'PUT',
       headers,
@@ -148,7 +156,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     const body = JSON.stringify({ proofUrl: buildManualProofPayload(info) });
     fetch(`/api/bookings/${id}/payment`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body
     })
       .then(() => fetchDetail())

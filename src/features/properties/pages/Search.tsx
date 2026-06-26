@@ -4,6 +4,7 @@ import { Star, SlidersHorizontal, ArrowUpDown, X, Loader2, SearchX, Calendar, Mo
 import { useLanguage } from '../../../shared/i18n';
 import { usePropertyFilterOptions } from '../../../hooks/usePropertyFilterOptions';
 import { useWishlist } from '../../../shared/context/WishlistContext';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 interface SearchProps {
   initialLocation?: string;
@@ -25,6 +26,12 @@ export default function Search({
   onNavigate 
 }: SearchProps) {
   const { language, formatCurrencyIDR } = useLanguage();
+  useDocumentMetadata({
+    title: language === 'en' ? 'Explore Properties' : 'Cari Akomodasi',
+    description: language === 'en'
+      ? 'Browse and book premium hotels, villas, apartments, and luxury guest houses at StayEase with dynamic pricing and instant confirmation.'
+      : 'Cari dan pesan hotel, vila, apartemen, dan guest house mewah premium di StayEase dengan harga dinamis dan konfirmasi instan.'
+  });
   const { isFavorited, toggleFavorite } = useWishlist();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);

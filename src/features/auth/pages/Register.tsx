@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Compass, User, Mail, Lock, ShieldCheck, ArrowRight, Loader2, Chrome, Apple } from 'lucide-react';
 import { UserRole } from '../../../types'; 
 import { useAsyncAction } from '../../../protection';
@@ -12,6 +12,7 @@ interface RegisterProps {
 
 export default function Register({ onNavigate, params }: RegisterProps) {
   const { login: authContextLogin } = useAuth();
+  const isSubmittingRef = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,13 +92,33 @@ export default function Register({ onNavigate, params }: RegisterProps) {
 
   const { execute: handleSubmit, isLoading: loading } = useAsyncAction(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || isSubmittingRef.current) {
+      console.warn('Registration action already in progress. Double-click prevented.');
+      return;
+    }
     setError('');
     
+    // Validasi sebelum memanggil Supabase
+    if (!name.trim()) {
+      setError('Nama Lengkap wajib diisi');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Format email tidak valid');
+      return;
+    }
+    if (!role) {
+      setError('Role wajib dipilih');
+      return;
+    }
     // Simple frontend validation for password strength
     if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
       return;
     }
+
+    isSubmittingRef.current = true;
 
     try {
       // 1. Bootstrap client-side Supabase client
@@ -119,7 +140,11 @@ export default function Register({ onNavigate, params }: RegisterProps) {
 
       if (signUpError) {
         console.error('[Register:signUp] Supabase signUp failed:', signUpError);
-        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+        const errMessage = signUpError.message?.toLowerCase() || '';
+        if (signUpError.status === 429 || errMessage.includes('rate limit') || errMessage.includes('too many requests')) {
+          throw new Error('Terlalu banyak permintaan verifikasi email. Silakan tunggu beberapa saat sebelum mencoba kembali.');
+        }
+        if (errMessage.includes('already registered') || errMessage.includes('already exists')) {
           throw new Error('Email already registered');
         }
         throw new Error(`Verification email failed: ${signUpError.message}`);
@@ -149,6 +174,8 @@ export default function Register({ onNavigate, params }: RegisterProps) {
     } catch (err: any) {
       console.error('[Register:handleSubmit] Error:', err);
       setError(err.message || 'Error occurred during registration');
+    } finally {
+      isSubmittingRef.current = false;
     }
   });
 

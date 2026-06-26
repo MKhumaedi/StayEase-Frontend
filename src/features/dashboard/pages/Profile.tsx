@@ -6,6 +6,7 @@ import {
   AlertTriangle, Upload, CheckCircle2, UserCircle 
 } from 'lucide-react';
 import { useLanguage } from '../../../shared/i18n';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 // Helper to extract initials from name
 export function getInitials(name?: string): string {
@@ -18,6 +19,13 @@ export function getInitials(name?: string): string {
 export default function Profile() {
   const { user, token, login } = useAuth();
   const { language } = useLanguage();
+
+  useDocumentMetadata({
+    title: language === 'en' ? 'My Profile' : 'Profil Saya',
+    description: language === 'en'
+      ? 'Manage your StayEase account, personal details, and property preferences.'
+      : 'Kelola akun StayEase Anda, detail pribadi, dan preferensi properti.'
+  });
 
   // Fresh state loaded from backend / context
   const [name, setName] = useState('');

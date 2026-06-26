@@ -306,6 +306,7 @@ export default function Navbar({
   const [regError, setRegError] = useState('');
   const [regSuccessData, setRegSuccessData] = useState<{ user: any; verificationToken: string } | null>(null);
   const [regLoading, setRegLoading] = useState(false);
+  const isRegSubmittingRef = useRef(false);
 
   // Password visibility toggle states
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -423,6 +424,10 @@ export default function Navbar({
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (regLoading || isRegSubmittingRef.current) {
+      console.warn('Registration action already in progress in Navbar. Double-click prevented.');
+      return;
+    }
     setRegError('');
     setRegSuccessData(null);
 
@@ -434,8 +439,17 @@ export default function Navbar({
       setRegError('Email Address is required');
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(regEmail.trim())) {
+      setRegError('Format email tidak valid');
+      return;
+    }
     if (!regPassword) {
       setRegError('Password is required');
+      return;
+    }
+    if (!regRole) {
+      setRegError('Role is required');
       return;
     }
     
@@ -458,6 +472,7 @@ export default function Navbar({
     }
 
     setRegLoading(true);
+    isRegSubmittingRef.current = true;
     try {
       const supabase = await getSupabaseClient();
       const redirectUrl = window.location.origin + '/auth/callback';
@@ -475,7 +490,11 @@ export default function Navbar({
 
       if (signUpError) {
         console.error('[Navbar:signUp] Supabase signUp failed:', signUpError);
-        if (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists')) {
+        const errMessage = signUpError.message?.toLowerCase() || '';
+        if (signUpError.status === 429 || errMessage.includes('rate limit') || errMessage.includes('too many requests')) {
+          throw new Error('Terlalu banyak permintaan verifikasi email. Silakan tunggu beberapa saat sebelum mencoba kembali.');
+        }
+        if (errMessage.includes('already registered') || errMessage.includes('already exists')) {
           throw new Error('Email already registered');
         }
         throw new Error(`Verification email failed: ${signUpError.message}`);
@@ -515,6 +534,7 @@ export default function Navbar({
       setRegError(err.message || 'Error occurred during registration');
     } finally {
       setRegLoading(false);
+      isRegSubmittingRef.current = false;
     }
   };
 

@@ -29,12 +29,14 @@ import {
 import { useLanguage } from '../../../shared/i18n';
 import { usePropertyFilterOptions } from '../../../hooks/usePropertyFilterOptions';
 import { useWishlist } from '../../../shared/context/WishlistContext';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 interface HomeProps {
   onNavigate: (path: string, params?: any) => void;
 }
 
 export default function Home({ onNavigate }: HomeProps) {
+  useDocumentMetadata();
   const { t, language, formatCurrencyIDR } = useLanguage();
   const { isFavorited, toggleFavorite } = useWishlist();
 

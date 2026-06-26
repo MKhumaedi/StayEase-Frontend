@@ -8,6 +8,7 @@ import PlatformStats from '../components/PlatformStats';
 import PartnerSection from '../components/PartnerSection';
 import AboutFaq from '../components/AboutFaq';
 import ContactCta from '../components/ContactCta';
+import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
 
 interface AboutPageProps {
   onNavigate: (path: string) => void;
@@ -15,6 +16,13 @@ interface AboutPageProps {
 
 export default function AboutPage({ onNavigate }: AboutPageProps) {
   const { language } = useLanguage();
+
+  useDocumentMetadata({
+    title: language === 'en' ? 'About Us' : 'Tentang Kami',
+    description: language === 'en' 
+      ? 'Learn more about StayEase, our mission, vision, and how we deliver premium hotel, villa, and property booking experiences.'
+      : 'Pelajari lebih lanjut tentang StayEase, misi, visi, dan bagaimana kami menghadirkan pengalaman pemesanan hotel, vila, dan properti premium.'
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 md:py-12 animate-fade-in text-slate-800">
