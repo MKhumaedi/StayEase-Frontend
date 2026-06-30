@@ -234,8 +234,14 @@ export default function Navbar({
       }
     };
     fetchNotifications();
+
+    window.addEventListener('stayease:refresh_notifications', fetchNotifications);
+
     const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('stayease:refresh_notifications', fetchNotifications);
+    };
   }, [user, token]);
 
   const handleMarkRead = async (id: string) => {

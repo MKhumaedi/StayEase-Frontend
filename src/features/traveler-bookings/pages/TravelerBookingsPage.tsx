@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function TravelerBookingsPage({ token, onReview }: Props) {
-  const { data, total, stats, loading, filters, changeFilter, resetFilters } = useTravelerBookings(token);
+  const { data, total, stats, loading, filters, changeFilter, resetFilters, reload } = useTravelerBookings(token);
   const [selectedBooking, setSelectedBooking] = useState<TravelerBooking | null>(null);
   const { formatCurrencyIDR } = useLanguage();
   const totalPages = Math.ceil(total / filters.limit) || 1;
@@ -32,6 +32,7 @@ export function TravelerBookingsPage({ token, onReview }: Props) {
         setSelectedBooking={setSelectedBooking}
         onReview={onReview}
         formatCurrencyIDR={formatCurrencyIDR}
+        onReload={reload}
       />
       {data.length > 0 && totalPages > 1 && (
         <Pagination page={filters.page} totalPages={totalPages} onPageChange={(p) => changeFilter('page', p)} />
@@ -41,7 +42,7 @@ export function TravelerBookingsPage({ token, onReview }: Props) {
   );
 }
 
-function MainContent({ loading, data, isSearchActive, onReset, setSelectedBooking, onReview, formatCurrencyIDR }: {
+function MainContent({ loading, data, isSearchActive, onReset, setSelectedBooking, onReview, formatCurrencyIDR, onReload }: {
   loading: boolean;
   data: TravelerBooking[];
   isSearchActive: boolean;
@@ -49,10 +50,11 @@ function MainContent({ loading, data, isSearchActive, onReset, setSelectedBookin
   setSelectedBooking: (b: TravelerBooking) => void;
   onReview: (b: TravelerBooking) => void;
   formatCurrencyIDR: (v: number) => string;
+  onReload: () => void;
 }) {
   if (loading) return <LoadingIndicator />;
   if (data.length === 0) return <EmptyState isSearch={isSearchActive} onClear={onReset} />;
-  return <BookingList data={data} onDetail={setSelectedBooking} onReview={onReview} formatCurrency={formatCurrencyIDR} />;
+  return <BookingList data={data} onDetail={setSelectedBooking} onReview={onReview} formatCurrency={formatCurrencyIDR} onReload={onReload} />;
 }
 
 function LoadingIndicator() {
@@ -63,11 +65,12 @@ function LoadingIndicator() {
   );
 }
 
-function BookingList({ data, onDetail, onReview, formatCurrency }: {
+function BookingList({ data, onDetail, onReview, formatCurrency, onReload }: {
   data: TravelerBooking[];
   onDetail: (b: TravelerBooking) => void;
   onReview: (b: TravelerBooking) => void;
   formatCurrency: (val: number) => string;
+  onReload: () => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4">
@@ -78,6 +81,7 @@ function BookingList({ data, onDetail, onReview, formatCurrency }: {
           onDetail={onDetail}
           onReview={onReview}
           formatCurrency={formatCurrency}
+          onReload={onReload}
         />
       ))}
     </div>

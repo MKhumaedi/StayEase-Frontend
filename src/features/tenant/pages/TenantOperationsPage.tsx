@@ -95,18 +95,30 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
   };
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchHousekeeping(), fetchMaintenance()])
-      .finally(() => setLoading(false));
+    if (!token) return;
 
-    // Staggered polling for real-time operation support
-    const interval = setInterval(() => {
-      fetchHousekeeping();
-      fetchMaintenance();
-    }, 5000);
+    if (activeTab === 'housekeeping') {
+      setLoading(true);
+      fetchHousekeeping().finally(() => setLoading(false));
 
-    return () => clearInterval(interval);
-  }, [token]);
+      const interval = setInterval(() => {
+        fetchHousekeeping();
+      }, 5000);
+
+      return () => clearInterval(interval);
+    } else if (activeTab === 'maintenance') {
+      setLoading(true);
+      fetchMaintenance().finally(() => setLoading(false));
+
+      const interval = setInterval(() => {
+        fetchMaintenance();
+      }, 5000);
+
+      return () => clearInterval(interval);
+    } else {
+      setLoading(false);
+    }
+  }, [token, activeTab]);
 
   const handleToggleHKCheck = async (roomId: string, taskIdx: number) => {
     let updatedTask: HousekeepingTask | null = null;

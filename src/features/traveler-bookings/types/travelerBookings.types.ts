@@ -41,6 +41,8 @@ export interface TravelerBooking {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  checkoutRequested?: boolean;
+  actualCheckoutRequestAt?: string;
 }
 
 export interface BookingFilters {

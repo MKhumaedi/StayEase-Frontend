@@ -130,6 +130,8 @@ export interface Booking {
   guestPhone: string;
   hasPaymentProof?: boolean;
   paymentProofUrl?: string;
+  checkoutRequested?: boolean;
+  actualCheckoutRequestAt?: string;
 }
 
 export interface Review {

@@ -36,15 +36,22 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
   useEffect(() => {
     const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-    fetch('/api/reports', { headers: authHeader })
-      .then(res => res.json())
-      .then(data => setReports(data))
-      .catch(err => console.error(err));
+    const loadStats = () => {
+      fetch('/api/reports', { headers: authHeader })
+        .then(res => res.json())
+        .then(data => setReports(data))
+        .catch(err => console.error(err));
 
-    fetch('/api/bookings', { headers: authHeader })
-      .then(res => res.json())
-      .then(data => setBookings(data.data || []))
-      .catch(err => console.error(err));
+      fetch('/api/bookings', { headers: authHeader })
+        .then(res => res.json())
+        .then(data => setBookings(data.data || []))
+        .catch(err => console.error(err));
+    };
+
+    loadStats();
+
+    // Listen for custom check-out sync events to trigger immediate, instant visual refresh
+    window.addEventListener('stayease:refresh_bookings', loadStats);
 
     const interval = setInterval(() => {
       fetch('/api/reports', { headers: authHeader })
@@ -57,7 +64,10 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
         .catch(() => {});
     }, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('stayease:refresh_bookings', loadStats);
+    };
   }, [token]);
 
   // Handle fallback navigation for embedded components

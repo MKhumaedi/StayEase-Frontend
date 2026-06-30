@@ -22,45 +22,99 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [checkOutModalBooking, setCheckOutModalBooking] = useState<any>(null);
+  const [successToast, setSuccessToast] = useState<{
+    bookingCode: string;
+    guestName: string;
+    property: string;
+    time: string;
+  } | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
-  // Load bookings
+  // Load bookings using database-level filtering for precise operational alignment
   const loadBookings = () => {
     setLoading(true);
     const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-    fetch('/api/bookings', { headers: authHeader })
-      .then(res => res.json())
+    const url = '/api/bookings?status=CHECKED_IN&checkoutRequested=true&checkedOutAtNull=true&limit=100';
+    console.log('[BOOKING FRONTEND AUDIT] Fetching URL:', url);
+    fetch(url, { headers: authHeader })
+      .then(res => {
+        console.log('[BOOKING FRONTEND AUDIT] Response status:', res.status);
+        return res.json();
+      })
       .then(data => {
-        setBookings(data.data || []);
+        console.log('[BOOKING FRONTEND AUDIT] Received payload:', data);
+        const list = data.data || [];
+        console.log('[BOOKING FRONTEND AUDIT] Number of bookings in response:', list.length);
+        setBookings(list);
         setLoading(false);
       })
       .catch(err => {
-        console.error('Error fetching bookings:', err);
+        console.error('[BOOKING FRONTEND AUDIT] Error fetching bookings:', err);
         setLoading(false);
       });
   };
 
   useEffect(() => {
     loadBookings();
+
+    const handleRefresh = () => {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const url = '/api/bookings?status=CHECKED_IN&checkoutRequested=true&checkedOutAtNull=true&limit=100';
+      console.log('[BOOKING FRONTEND AUDIT] Refreshing URL:', url);
+      fetch(url, { headers: authHeader })
+        .then(res => res.json())
+        .then(data => {
+          const list = data.data || [];
+          console.log('[BOOKING FRONTEND AUDIT] Refreshed bookings length:', list.length);
+          setBookings(list);
+        })
+        .catch(err => {
+          console.error('[BOOKING FRONTEND AUDIT] Error refreshing bookings:', err);
+        });
+    };
+
+    window.addEventListener('stayease:refresh_bookings', handleRefresh);
+    return () => {
+      window.removeEventListener('stayease:refresh_bookings', handleRefresh);
+    };
   }, [token]);
+
+  // Auto-close success toast after 3 seconds
+  useEffect(() => {
+    if (successToast) {
+      const timer = setTimeout(() => {
+        setSuccessToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successToast]);
+
+  // Auto-close error toast after 3 seconds
+  useEffect(() => {
+    if (errorToast) {
+      const timer = setTimeout(() => {
+        setErrorToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorToast]);
 
   const tzOffset = new Date().getTimezoneOffset() * 60000;
   const todayStr = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
 
-  // Filters: status === 'CHECKED_IN' (only guests leaving today or late checkouts)
+  // LOGS:
+  console.log('[BOOKING FRONTEND AUDIT] Render state bookings:', bookings);
+
+  // Filters are handled primarily in the DB, keep client search for extra responsiveness
   const filteredBookings = bookings.filter(b => {
-    const matchesCheckedIn = b.status === 'CHECKED_IN';
-    if (!matchesCheckedIn) return false;
-
-    const isTodayDeparture = b.endDate === todayStr;
-    const isLateCheckOut = todayStr > b.endDate;
-    if (!isTodayDeparture && !isLateCheckOut) return false;
-
     if (searchQuery) {
       const field = (b.guestName + ' ' + b.bookingCode + ' ' + (b.property?.name || '')).toLowerCase();
       return field.includes(searchQuery.toLowerCase());
     }
     return true;
   });
+
+  console.log('[BOOKING FRONTEND AUDIT] Render state filteredBookings:', filteredBookings);
 
   const handleConfirmCheckOut = async (bookingId: string) => {
     try {
@@ -75,12 +129,34 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to check-out');
       }
-      // Reload bookings and close modals
-      loadBookings();
+      
+      const targetBooking = bookings.find(b => b.id === bookingId) || checkOutModalBooking;
+      
+      // Close confirmation modal
       setCheckOutModalBooking(null);
-      alert(language === 'en' ? 'Check-out recorded successfully!' : 'Check-out berhasil dicatat!');
+      
+      // Load updated bookings list
+      loadBookings();
+      
+      // Trigger modern high-fidelity toast notification
+      const timeStr = new Date().toLocaleTimeString(language === 'en' ? 'en-US' : 'id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      setSuccessToast({
+        bookingCode: targetBooking?.bookingCode || 'N/A',
+        guestName: targetBooking?.guestName || 'N/A',
+        property: targetBooking?.property?.name || 'N/A',
+        time: timeStr
+      });
+
+      // Broadly dispatch custom events to keep whole dashboard state updated dynamically without window reload
+      window.dispatchEvent(new CustomEvent('stayease:refresh_bookings'));
+      window.dispatchEvent(new CustomEvent('stayease:refresh_notifications'));
+
     } catch (err: any) {
-      alert(err.message);
+      setErrorToast(err.message || 'An error occurred during check-out');
     }
   };
 
@@ -164,8 +240,8 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
                     <td className="py-3.5 px-4 text-slate-650 font-bold">{b.endDate}</td>
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col gap-1 items-start">
-                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-bold">
-                          {language === 'en' ? 'GUEST STAYING' : 'SEDANG MENGINAP'}
+                        <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[9px] font-bold border border-amber-200">
+                          {language === 'en' ? 'PENDING CHECKOUT' : 'MENUNGGU KELUAR'}
                         </span>
                         
                         {isLateCheckOut && (
@@ -275,6 +351,74 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
 
       {/* Booking Detail Modal */}
       {selectedBooking && renderBookingDetailModal(selectedBooking, () => setSelectedBooking(null), language, formatCurrencyIDR)}
+
+      {/* Modern Success Toast / Modal */}
+      {successToast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-emerald-600 text-white rounded-2xl p-5 shadow-2xl max-w-sm border border-emerald-500 flex flex-col gap-3 relative">
+            <button 
+              onClick={() => setSuccessToast(null)}
+              className="absolute top-3 right-3 text-emerald-100 hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-sm tracking-tight">{language === 'en' ? 'Check-out Confirmed' : 'Check-out Dikonfirmasi'}</h4>
+                <p className="text-[11px] text-emerald-100">{language === 'en' ? 'Guest check-out session successfully archived.' : 'Sesi check-out tamu berhasil disimpan.'}</p>
+              </div>
+            </div>
+            <div className="bg-emerald-700/30 rounded-xl p-3 flex flex-col gap-1.5 text-[11px] border border-emerald-500/20">
+              <div className="flex justify-between">
+                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Guest:' : 'Tamu:'}</span>
+                <span className="font-bold">{successToast.guestName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Booking Code:' : 'Pemesanan:'}</span>
+                <span className="font-mono font-bold">{successToast.bookingCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Property:' : 'Properti:'}</span>
+                <span className="font-semibold">{successToast.property}</span>
+              </div>
+              <div className="flex justify-between border-t border-emerald-500/20 pt-1.5 mt-0.5">
+                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Checkout Time:' : 'Waktu Keluar:'}</span>
+                <span className="font-bold">{successToast.time}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setSuccessToast(null)}
+              className="w-full py-1.5 bg-white text-emerald-700 hover:bg-emerald-50 text-[11px] font-extrabold rounded-lg transition-colors cursor-pointer text-center"
+            >
+              {language === 'en' ? 'Close' : 'Tutup'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {errorToast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-rose-600 text-white rounded-2xl p-4 shadow-2xl max-w-sm border border-rose-500 flex items-center gap-3 relative">
+            <button 
+              onClick={() => setErrorToast(null)}
+              className="absolute top-2 right-2 text-rose-100 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-7 h-7 rounded-full bg-rose-550/30 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-white" />
+            </div>
+            <div className="pr-4">
+              <h5 className="font-bold text-xs">{language === 'en' ? 'Error' : 'Kesalahan'}</h5>
+              <p className="text-[10px] text-rose-100">{errorToast}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
