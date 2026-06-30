@@ -10,7 +10,7 @@ interface PeakSeasonManagementProps {
 
 const fetchAdmin = async (url: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('stayease_token');
-  const headers = {
+  const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})

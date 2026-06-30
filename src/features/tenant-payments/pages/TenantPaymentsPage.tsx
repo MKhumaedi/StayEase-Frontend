@@ -12,17 +12,6 @@ interface PaymentInfo {
 }
 
 export function parseProof(rawUrl: string): PaymentInfo {
-  // 1. Antisipasi jika data berasal dari Payment Gateway Midtrans Otomatis
-  if (rawUrl && rawUrl.startsWith('midtrans://')) {
-    return { 
-      id: 'midtrans_auto', 
-      url: '#', 
-      originalName: 'Midtrans Gateway', 
-      status: 'APPROVED' 
-    };
-  }
-
-  // 2. Logika untuk parsing data JSON dari Bukti Transfer Manual Bank
   if (rawUrl && rawUrl.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(rawUrl);
@@ -46,7 +35,7 @@ export default function TenantPaymentsPage({ onNavigate }: { onNavigate: (p: str
   const [error, setError] = useState<string | null>(null);
 
   const fetchPayments = () => {
-    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch('/api/tenant/payments', { headers: authHeader })
       .then(res => res.json())
       .then((data) => {
@@ -153,13 +142,9 @@ export default function TenantPaymentsPage({ onNavigate }: { onNavigate: (p: str
                     <td className="p-4">{b.guestName}</td>
                     <td className="p-4 text-indigo-750 font-black">{formatCurrencyIDR(b.totalAmount)}</td>
                     <td className="p-4">
-                      {proof.id === 'midtrans_auto' ? (
-                        <span className="text-slate-400 italic font-medium">Automatic System Verification</span>
-                      ) : (
-                        <button onClick={() => setSelectedProof(proof.url)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100/80 hover:bg-slate-200 border border-slate-200 rounded-xl font-bold text-slate-750 transition-all cursor-pointer">
-                          <Eye className="w-3.5 h-3.5" /> {en ? 'View Slip' : 'Lihat Detail'}
-                        </button>
-                      )}
+                      <button onClick={() => setSelectedProof(proof.url)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100/80 hover:bg-slate-200 border border-slate-200 rounded-xl font-bold text-slate-750 transition-all cursor-pointer">
+                        <Eye className="w-3.5 h-3.5" /> {en ? 'View Slip' : 'Lihat Detail'}
+                      </button>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-1.5">

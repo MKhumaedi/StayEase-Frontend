@@ -26,7 +26,7 @@ export default function TodayCheckOutPage({ onNavigate }: { onNavigate: (path: s
   // Load bookings
   const loadBookings = () => {
     setLoading(true);
-    const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch('/api/bookings', { headers: authHeader })
       .then(res => res.json())
       .then(data => {

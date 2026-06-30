@@ -34,8 +34,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
   const en = language === 'en';
 
   useEffect(() => {
-    // Use undefined when there is no token so HeadersInit typing matches fetch signature
-    const authHeader: HeadersInit | undefined = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     fetch('/api/reports', { headers: authHeader })
       .then(res => res.json())

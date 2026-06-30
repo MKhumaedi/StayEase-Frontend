@@ -28,7 +28,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
 
   const fetchDetail = () => {
     setLoading(true);
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`/api/bookings/${id}`, { headers })
       .then(res => res.json())
       .then(data => {
@@ -60,11 +60,11 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     };
   }, []);
 
-  const syncAndPollDetail = async (headers: any) => {
+  const syncAndPollDetail = async (headers: HeadersInit) => {
     try {
       await fetch('/api/payments/midtrans/sync', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { ...(headers as Record<string, string>), 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId: id })
       }).catch(err => console.error('Sync error:', err));
       const res = await fetch(`/api/bookings/${id}`, { headers });
@@ -77,7 +77,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
 
   useEffect(() => {
     if (booking?.status !== 'WAITING_PAYMENT') return;
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     const interval = setInterval(() => syncAndPollDetail(headers), 4000);
     return () => clearInterval(interval);
   }, [id, token, booking?.status]);
@@ -116,7 +116,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
   };
 
   const updateStatus = (status: string) => {
-    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    const headers: HeadersInit = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
     fetch(`/api/bookings/${id}/status`, {
       method: 'PUT',
       headers,

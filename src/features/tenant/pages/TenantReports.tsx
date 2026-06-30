@@ -24,7 +24,7 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
   }, [initialSegment]);
 
   useEffect(() => {
-    const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     fetch('/api/reports', { headers: authHeader })
       .then(res => res.json())

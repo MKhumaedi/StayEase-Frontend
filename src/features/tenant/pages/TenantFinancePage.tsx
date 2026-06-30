@@ -48,7 +48,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
   const fetchPayments = () => {
     setLoading(true);
-    const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch('/api/tenant/payments', { headers: authHeader })
       .then(res => res.json())
       .then((data) => {
@@ -61,7 +61,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
   useEffect(() => {
     fetchPayments();
     const interval = setInterval(() => {
-      const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
       fetch('/api/tenant/payments', { headers: authHeader })
         .then(res => res.json())
         .then((data) => {

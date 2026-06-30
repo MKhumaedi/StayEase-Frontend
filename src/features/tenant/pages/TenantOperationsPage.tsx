@@ -9,13 +9,11 @@ import {
   Sparkles, 
   Wrench, 
   Plus, 
-  CheckCircle, 
   X, 
-  AlertTriangle, 
   Check, 
-  Play, 
   CheckCircle2, 
-  Clock 
+  Clock,
+  Loader2
 } from 'lucide-react';
 import TodayCheckInPage from './TodayCheckInPage';
 import TodayStayingPage from './TodayStayingPage';
@@ -28,10 +26,10 @@ interface OperationsProps {
 }
 
 interface HousekeepingTask {
-  id: string;
+  id: string; // maps to roomId
   roomName: string;
   propertyName: string;
-  status: 'DIRTY' | 'CLEANING' | 'CLEAN';
+  status: 'DIRTY' | 'CLEANING' | 'INSPECTING' | 'READY' | 'OUT_OF_SERVICE';
   assignedTo: string;
   checklist: { text: string; done: boolean }[];
 }
@@ -42,7 +40,7 @@ interface MaintenanceRequest {
   propertyName: string;
   roomNameName: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'PENDING' | 'RESOLVED';
+  status: 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
   createdAt: string;
 }
 
@@ -59,88 +57,9 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
     }
   }, [initialTab]);
 
-  // Housekeeping mock state (robust, interactive local storage state)
-  const [housekeeping, setHousekeeping] = useState<HousekeepingTask[]>(() => {
-    const saved = localStorage.getItem('stay_ease_housekeeping');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return [
-      {
-        id: 'hk-1',
-        roomName: 'Deluxe Suite 101',
-        propertyName: 'Ocean Breeze Villa',
-        status: 'DIRTY',
-        assignedTo: 'Andi Saputra',
-        checklist: [
-          { text: 'Replace King bed linens & pillows', done: false },
-          { text: 'Sanitize bathroom counters & mirror', done: false },
-          { text: 'Restock premium espresso capsules', done: false },
-          { text: 'Sweep and mop private balcony', done: false }
-        ]
-      },
-      {
-        id: 'hk-2',
-        roomName: 'Standard Room 304',
-        propertyName: 'City Center Apartment',
-        status: 'CLEANING',
-        assignedTo: 'Rina Wijaya',
-        checklist: [
-          { text: 'Replace towels', done: true },
-          { text: 'Disinfect remote controls', done: false },
-          { text: 'Empty kitchen bin and change bags', done: true }
-        ]
-      },
-      {
-        id: 'hk-3',
-        roomName: 'Penthouse Suite 501',
-        propertyName: 'Urban Heights Penthouse',
-        status: 'CLEAN',
-        assignedTo: 'Budi Santoso',
-        checklist: [
-          { text: 'Damp-dust luxury light fixtures', done: true },
-          { text: 'Polishing premium bath glass', done: true }
-        ]
-      }
-    ];
-  });
-
-  // Maintenance state
-  const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>(() => {
-    const saved = localStorage.getItem('stay_ease_maintenance');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return [
-      {
-        id: 'm-1',
-        title: 'Master bed Air Conditioning unit leaking water',
-        propertyName: 'Ocean Breeze Villa',
-        roomNameName: 'Deluxe Suite 101',
-        priority: 'HIGH',
-        status: 'PENDING',
-        createdAt: '2026-06-21'
-      },
-      {
-        id: 'm-2',
-        title: 'Balcony sliding glass lock sliding system stiff',
-        propertyName: 'City Center Apartment',
-        roomNameName: 'Standard Room 304',
-        priority: 'MEDIUM',
-        status: 'PENDING',
-        createdAt: '2026-06-22'
-      },
-      {
-        id: 'm-3',
-        title: 'Main living room smart TV remote unresponsive',
-        propertyName: 'Urban Heights Penthouse',
-        roomNameName: 'Penthouse Suite 501',
-        priority: 'LOW',
-        status: 'RESOLVED',
-        createdAt: '2026-06-20'
-      }
-    ];
-  });
+  const [housekeeping, setHousekeeping] = useState<HousekeepingTask[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Add maintenance modal fields
   const [showAddMaintenance, setShowAddMaintenance] = useState(false);
@@ -149,63 +68,141 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
   const [newIssueRoom, setNewIssueRoom] = useState('');
   const [newIssuePriority, setNewIssuePriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
 
-  // Persistence effects
-  useEffect(() => {
-    localStorage.setItem('stay_ease_housekeeping', JSON.stringify(housekeeping));
-  }, [housekeeping]);
+  const fetchHousekeeping = async () => {
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('/api/housekeeping', { headers: authHeader });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setHousekeeping(data);
+      }
+    } catch (e) {
+      console.error('Error fetching housekeeping:', e);
+    }
+  };
+
+  const fetchMaintenance = async () => {
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('/api/maintenance', { headers: authHeader });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMaintenance(data);
+      }
+    } catch (e) {
+      console.error('Error fetching maintenance:', e);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('stay_ease_maintenance', JSON.stringify(maintenance));
-  }, [maintenance]);
+    setLoading(true);
+    Promise.all([fetchHousekeeping(), fetchMaintenance()])
+      .finally(() => setLoading(false));
 
-  const handleToggleHKCheck = (hkId: string, taskIdx: number) => {
+    // Staggered polling for real-time operation support
+    const interval = setInterval(() => {
+      fetchHousekeeping();
+      fetchMaintenance();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const handleToggleHKCheck = async (roomId: string, taskIdx: number) => {
+    let updatedTask: HousekeepingTask | null = null;
     setHousekeeping(prev => prev.map(hk => {
-      if (hk.id === hkId) {
+      if (hk.id === roomId) {
         const nextChecklist = [...hk.checklist];
         nextChecklist[taskIdx] = { ...nextChecklist[taskIdx], done: !nextChecklist[taskIdx].done };
-        return { ...hk, checklist: nextChecklist };
+        updatedTask = { ...hk, checklist: nextChecklist };
+        return updatedTask;
       }
       return hk;
     }));
+
+    if (updatedTask) {
+      try {
+        const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+        await fetch(`/api/housekeeping/${roomId}`, {
+          method: 'PUT',
+          headers: authHeader,
+          body: JSON.stringify({ checklist: (updatedTask as HousekeepingTask).checklist })
+        });
+      } catch (e) {
+        console.error('Failed to sync checklist on server:', e);
+      }
+    }
   };
 
-  const handleUpdateHKStatus = (hkId: string, nextStatus: 'DIRTY' | 'CLEANING' | 'CLEAN') => {
+  const handleUpdateHKStatus = async (roomId: string, nextStatus: HousekeepingTask['status']) => {
     setHousekeeping(prev => prev.map(hk => {
-      if (hk.id === hkId) {
+      if (hk.id === roomId) {
         return { ...hk, status: nextStatus };
       }
       return hk;
     }));
+
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      await fetch(`/api/housekeeping/${roomId}`, {
+        method: 'PUT',
+        headers: authHeader,
+        body: JSON.stringify({ status: nextStatus })
+      });
+      fetchHousekeeping();
+    } catch (e) {
+      console.error('Failed to sync status on server:', e);
+    }
   };
 
-  const handleAddMaintenance = (e: React.FormEvent) => {
+  const handleAddMaintenance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIssueTitle.trim()) return;
 
-    const request: MaintenanceRequest = {
-      id: 'm-' + Date.now(),
-      title: newIssueTitle.trim(),
-      propertyName: newIssueProp.trim() || 'Ocean Breeze Villa',
-      roomNameName: newIssueRoom.trim() || 'Deluxe Suite 101',
-      priority: newIssuePriority,
-      status: 'PENDING',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    setMaintenance(prev => [request, ...prev]);
-    setNewIssueTitle('');
-    setNewIssueProp('');
-    setNewIssueRoom('');
-    setShowAddMaintenance(false);
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      const res = await fetch('/api/maintenance', {
+        method: 'POST',
+        headers: authHeader,
+        body: JSON.stringify({
+          title: newIssueTitle.trim(),
+          propertyName: newIssueProp.trim() || 'Ocean Breeze Villa',
+          roomNameName: newIssueRoom.trim() || 'Deluxe Suite 101',
+          priority: newIssuePriority,
+          status: 'OPEN'
+        })
+      });
+      if (res.ok) {
+        setNewIssueTitle('');
+        setNewIssueProp('');
+        setNewIssueRoom('');
+        setShowAddMaintenance(false);
+        fetchMaintenance();
+      }
+    } catch (e) {
+      console.error('Failed to create maintenance defect:', e);
+    }
   };
 
-  const handleResolveMaintenance = (mId: string) => {
+  const handleUpdateMaintenanceStatus = async (id: string, nextStatus: MaintenanceRequest['status']) => {
     setMaintenance(prev => prev.map(m => {
-      if (m.id === mId) {
-        return { ...m, status: 'RESOLVED' };
+      if (m.id === id) {
+        return { ...m, status: nextStatus };
       }
       return m;
     }));
+
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      await fetch(`/api/maintenance/${id}/status`, {
+        method: 'PUT',
+        headers: authHeader,
+        body: JSON.stringify({ status: nextStatus })
+      });
+      fetchMaintenance();
+    } catch (e) {
+      console.error('Failed to update maintenance status:', e);
+    }
   };
 
   return (
@@ -226,7 +223,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
       </div>
 
       {/* Segmented Horizontal Tabs */}
-      <div className="flex bg-slate-105 bg-slate-100 p-1 rounded-2xl w-full lg:w-fit self-center border border-slate-200/50 overflow-x-auto text-[11px] font-bold">
+      <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-fit self-center border border-slate-200/50 overflow-x-auto text-[11px] font-bold">
         {[
           { id: 'check-in', name: en ? 'Check-In Today' : 'Check-In Hari Ini', icon: UserCheck },
           { id: 'staying', name: en ? 'Guest Staying' : 'Tamu Menginap', icon: ClipboardList },
@@ -243,7 +240,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
               className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border-0 ${
                 activeTab === tab.id 
                   ? 'bg-indigo-900 text-white shadow-xs' 
-                  : 'text-slate-655 text-slate-600 hover:text-indigo-905 hover:bg-slate-50/50'
+                  : 'text-slate-600 hover:text-indigo-950 hover:bg-slate-50/50'
               }`}
             >
               <TabIcon className="w-3.5 h-3.5" />
@@ -293,73 +290,82 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {housekeeping.map(hk => (
-                <div key={hk.id} className="bg-slate-50/70 p-5 rounded-2xl border border-slate-150 relative flex flex-col justify-between min-h-[290px]">
-                  <div>
-                    {/* Badge */}
-                    <div className="flex justify-between items-center mb-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                        hk.status === 'CLEAN' ? 'bg-emerald-50 text-emerald-600' :
-                        hk.status === 'CLEANING' ? 'bg-blue-50 text-blue-600 animate-pulse' :
-                        'bg-red-50 text-rose-600'
-                      }`}>
-                        {hk.status}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-bold">{hk.assignedTo}</span>
+            {loading ? (
+              <div className="flex justify-center items-center py-12 text-indigo-900">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : housekeeping.length === 0 ? (
+              <div className="py-16 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs">
+                {en ? 'No rooms found under management.' : 'Belum ada kamar yang diurus.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {housekeeping.map(hk => (
+                  <div key={hk.id} className="bg-slate-50/70 p-5 rounded-2xl border border-slate-150 relative flex flex-col justify-between min-h-[300px]">
+                    <div>
+                      {/* Badge */}
+                      <div className="flex justify-between items-center mb-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          hk.status === 'READY' ? 'bg-emerald-50 text-emerald-600' :
+                          hk.status === 'CLEANING' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+                          hk.status === 'INSPECTING' ? 'bg-purple-50 text-purple-600' :
+                          hk.status === 'OUT_OF_SERVICE' ? 'bg-slate-200 text-slate-700' :
+                          'bg-red-50 text-rose-600'
+                        }`}>
+                          {hk.status}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold">{hk.assignedTo}</span>
+                      </div>
+
+                      <h4 className="font-bold text-sm text-slate-800 font-display leading-tight">{hk.roomName}</h4>
+                      <span className="text-[10px] text-slate-450 block font-semibold mb-3">{hk.propertyName}</span>
+
+                      {/* Task checklist */}
+                      <div className="flex flex-col gap-2 mt-2">
+                        {hk.checklist.map((item, idx) => (
+                          <label 
+                            key={idx} 
+                            onClick={() => handleToggleHKCheck(hk.id, idx)}
+                            className="flex items-start gap-2 text-xs font-semibold text-slate-600 select-none cursor-pointer hover:text-slate-900 transition-colors"
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={item.done} 
+                              readOnly
+                              className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer" 
+                            />
+                            <span className={`${item.done ? 'line-through text-slate-400' : ''}`}>{item.text}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
 
-                    <h4 className="font-bold text-sm text-slate-800 font-display leading-tight">{hk.roomName}</h4>
-                    <span className="text-[10px] text-slate-450 block font-semibold mb-3">{hk.propertyName}</span>
-
-                    {/* Task checklist */}
-                    <div className="flex flex-col gap-2 mt-2">
-                      {hk.checklist.map((item, idx) => (
-                        <label 
-                          key={idx} 
-                          onClick={() => handleToggleHKCheck(hk.id, idx)}
-                          className="flex items-start gap-2 text-xs font-semibold text-slate-600 select-none cursor-pointer hover:text-slate-900 transition-colors"
+                    {/* Operational status update buttons */}
+                    <div className="border-t border-slate-200 mt-4 pt-3 flex flex-wrap gap-1">
+                      {[
+                        { key: 'DIRTY', label: 'Dirty', color: 'bg-rose-55 bg-rose-50 text-rose-600 border-rose-200' },
+                        { key: 'CLEANING', label: 'Cleaning', color: 'bg-blue-55 bg-blue-50 text-blue-600 border-blue-200' },
+                        { key: 'INSPECTING', label: 'Inspecting', color: 'bg-purple-55 bg-purple-50 text-purple-600 border-purple-200' },
+                        { key: 'READY', label: 'Ready', color: 'bg-emerald-55 bg-emerald-50 text-emerald-600 border-emerald-200' },
+                        { key: 'OUT_OF_SERVICE', label: 'Out of Service', color: 'bg-slate-205 bg-slate-200 text-slate-600 border-slate-300' }
+                      ].map(btn => (
+                        <button 
+                          key={btn.key}
+                          onClick={() => handleUpdateHKStatus(hk.id, btn.key as any)} 
+                          className={`flex-1 min-w-[70px] py-1 px-1.5 text-[9px] rounded-lg font-extrabold border uppercase tracking-wider ${hk.status === btn.key ? btn.color : 'bg-white text-slate-500 hover:bg-slate-100'}`}
                         >
-                          <input 
-                            type="checkbox" 
-                            checked={item.done} 
-                            readOnly
-                            className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer" 
-                          />
-                          <span className={`${item.done ? 'line-through text-slate-400' : ''}`}>{item.text}</span>
-                        </label>
+                          {btn.label}
+                        </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Operational status update drawer */}
-                  <div className="border-t border-slate-200 mt-4 pt-3 flex gap-1.5">
-                    <button 
-                      onClick={() => handleUpdateHKStatus(hk.id, 'DIRTY')} 
-                      className={`flex-1 py-1 px-2 text-[9px] rounded-lg font-extrabold border uppercase tracking-wider ${hk.status === 'DIRTY' ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-                    >
-                      Dirty
-                    </button>
-                    <button 
-                      onClick={() => handleUpdateHKStatus(hk.id, 'CLEANING')} 
-                      className={`flex-1 py-1 px-2 text-[9px] rounded-lg font-extrabold border uppercase tracking-wider ${hk.status === 'CLEANING' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-                    >
-                      Cleaning
-                    </button>
-                    <button 
-                      onClick={() => handleUpdateHKStatus(hk.id, 'CLEAN')} 
-                      className={`flex-1 py-1 px-2 text-[9px] rounded-[8px] font-extrabold border uppercase tracking-wider ${hk.status === 'CLEAN' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-                    >
-                      Clean
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 5: Maintenance Issues Ledger */}
+        {/* TAB: Maintenance Issues Ledger */}
         {activeTab === 'maintenance' && (
           <div className="p-4 flex flex-col gap-4">
             <div className="flex justify-between items-center mb-2">
@@ -380,7 +386,11 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
               </button>
             </div>
 
-            {maintenance.length === 0 ? (
+            {loading ? (
+              <div className="flex justify-center items-center py-12 text-indigo-900">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : maintenance.length === 0 ? (
               <div className="py-16 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs">
                 {en ? 'No maintenance logs recorded.' : 'Belum ada masalah sarana dilaporkan.'}
               </div>
@@ -388,7 +398,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-150 text-slate-505 text-slate-500 font-black tracking-wider uppercase text-[9px]">
+                    <tr className="bg-slate-50 border-b border-slate-150 text-slate-500 font-black tracking-wider uppercase text-[9px]">
                       <th className="p-3">Defect Issue Title</th>
                       <th className="p-3">Location Context</th>
                       <th className="p-3">Logged Date</th>
@@ -397,11 +407,11 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                       <th className="p-3 text-right">Administrative</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                     {maintenance.map(item => (
                       <tr key={item.id} className="hover:bg-slate-50/50">
                         <td className="p-3">
-                          <p className={`font-bold text-slate-800 leading-tight ${item.status === 'RESOLVED' ? 'line-through text-slate-400' : ''}`}>{item.title}</p>
+                          <p className={`font-bold text-slate-800 leading-tight ${item.status === 'DONE' ? 'line-through text-slate-400' : ''}`}>{item.title}</p>
                           <span className="text-[9px] text-slate-400 font-normal">Task Ref: {item.id}</span>
                         </td>
                         <td className="p-3">
@@ -411,29 +421,58 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                         <td className="p-3">{item.createdAt}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold tracking-wide uppercase ${
-                            item.priority === 'CRITICAL' ? 'bg-red-101 bg-red-100 text-red-700' :
-                            item.priority === 'HIGH' ? 'bg-amber-101 bg-amber-100 text-amber-700' :
-                            item.priority === 'MEDIUM' ? 'bg-blue-105 bg-blue-100 text-blue-700' :
-                            'bg-slate-101 bg-slate-100 text-slate-500'
+                            item.priority === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                            item.priority === 'HIGH' ? 'bg-amber-100 text-amber-700' :
+                            item.priority === 'MEDIUM' ? 'bg-blue-100 text-blue-700' :
+                            'bg-slate-100 text-slate-500'
                           }`}>
                             {item.priority}
                           </span>
                         </td>
                         <td className="p-3 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${item.status === 'RESOLVED' ? 'bg-emerald-55 bg-emerald-50 text-emerald-600' : 'bg-amber-55 bg-amber-50 text-amber-600'}`}>
-                            {item.status === 'RESOLVED' ? (en ? 'Resolved' : 'Selesai') : (en ? 'Pending' : 'Memerlukan Perbaikan')}
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                            item.status === 'DONE' ? 'bg-emerald-50 text-emerald-600' : 
+                            item.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+                            item.status === 'CANCELLED' ? 'bg-slate-100 text-slate-550' :
+                            'bg-amber-50 text-amber-600'
+                          }`}>
+                            {item.status}
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          {item.status === 'PENDING' ? (
-                            <button 
-                              onClick={() => handleResolveMaintenance(item.id)}
-                              className="px-3 py-1.5 bg-emerald-650 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-extrabold shadow-3xs cursor-pointer flex items-center gap-1 ml-auto"
-                            >
-                              <Check className="w-3 h-3" /> {en ? 'Resolve defect' : 'Selesaikan'}
-                            </button>
+                          {item.status !== 'DONE' && item.status !== 'CANCELLED' ? (
+                            <div className="flex gap-1.5 justify-end">
+                              {item.status === 'OPEN' && (
+                                <button 
+                                  onClick={() => handleUpdateMaintenanceStatus(item.id, 'IN_PROGRESS')}
+                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-extrabold cursor-pointer border-0"
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {item.status === 'IN_PROGRESS' && (
+                                <button 
+                                  onClick={() => handleUpdateMaintenanceStatus(item.id, 'DONE')}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-extrabold cursor-pointer border-0"
+                                >
+                                  Done
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleUpdateMaintenanceStatus(item.id, 'CANCELLED')}
+                                className="px-2 py-1 border border-slate-200 hover:bg-slate-100 text-slate-650 rounded-lg text-[10px] font-extrabold cursor-pointer bg-white"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-[10px] text-slate-400 italic font-semibold flex items-center gap-1 justify-end"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 inline-block" /> {en ? 'No Action Req' : 'Selesai'}</span>
+                            <span className="text-[10px] text-slate-400 italic font-semibold flex items-center gap-1 justify-end">
+                              {item.status === 'DONE' ? (
+                                <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 inline-block" /> Finished</>
+                              ) : (
+                                <><X className="w-3.5 h-3.5 text-slate-400 inline-block" /> Cancelled</>
+                              )}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -456,7 +495,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                 <Wrench className="w-4 h-4 text-indigo-600" />
                 {en ? 'Log Facility Defect Request' : 'Laporkan Kerusakan Fasilitas'}
               </span>
-              <button type="button" onClick={() => setShowAddMaintenance(false)} className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"><X className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setShowAddMaintenance(false)} className="p-1 text-slate-400 hover:text-slate-700 rounded-lg border-0 bg-transparent"><X className="w-4 h-4" /></button>
             </div>
 
             <div className="flex flex-col gap-3 text-xs">
@@ -468,7 +507,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                   value={newIssueTitle} 
                   onChange={e => setNewIssueTitle(e.target.value)} 
                   placeholder={en ? 'E.g., Bathroom sink pipe leak' : 'Contoh: Pipa wastafel bocor'} 
-                  className="w-full border p-2.5 rounded-xl bg-slate-50 focus:outline-hidden focus:bg-white text-xs font-semibold focus:ring-1 focus:ring-indigo-505 focus:ring-indigo-500" 
+                  className="w-full border p-2.5 rounded-xl bg-slate-50 focus:outline-hidden focus:bg-white text-xs font-semibold focus:ring-1 focus:ring-indigo-500" 
                 />
               </div>
 
@@ -501,7 +540,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                 <select 
                   value={newIssuePriority} 
                   onChange={e => setNewIssuePriority(e.target.value as any)} 
-                  className="w-full border p-2.5 rounded-xl bg-slate-50 focus:outline-hidden focus:bg-white text-xs font-semibold focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  className="w-full border p-2.5 rounded-xl bg-slate-50 focus:outline-hidden focus:bg-white text-xs font-semibold focus:ring-1 focus:ring-indigo-500 cursor-pointer text-slate-700"
                 >
                   <option value="LOW">Low - Aesthetic issue only</option>
                   <option value="MEDIUM">Medium - Stiff locks, broken remotes</option>
@@ -512,8 +551,8 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
             </div>
 
             <div className="flex gap-2 justify-end pt-2 border-t text-xs">
-              <button type="button" onClick={() => setShowAddMaintenance(false)} className="px-4 py-2 hover:bg-slate-100 rounded-xl font-bold text-slate-500">Cancel</button>
-              <button type="submit" className="px-5 py-2 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-black shadow-xs cursor-pointer">
+              <button type="button" onClick={() => setShowAddMaintenance(false)} className="px-4 py-2 hover:bg-slate-100 rounded-xl font-bold text-slate-500 border-0 bg-transparent">Cancel</button>
+              <button type="submit" className="px-5 py-2 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-black shadow-xs cursor-pointer border-0">
                 {en ? 'Submit Log' : 'Daftarkan Kerusakan'}
               </button>
             </div>

@@ -21,7 +21,7 @@ import { useAuth } from '../../../shared/context/AuthContext';
 import { formatWithSettings } from '../../../shared/services/dateService';
 
 export default function TenantBookings() {
-  const { user } = useAuth();
+  const { token, user } = useAuth();
   const { language, formatCurrencyIDR } = useLanguage();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,8 @@ export default function TenantBookings() {
 
   const fetchBookings = () => {
     setLoading(true);
-    fetch('/api/bookings')
+    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+    fetch('/api/bookings', { headers: authHeader })
       .then(res => res.json())
       .then(data => {
         setBookings(data.data || []);
@@ -44,7 +45,8 @@ export default function TenantBookings() {
   useEffect(() => {
     fetchBookings();
     const interval = setInterval(() => {
-      fetch('/api/bookings')
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      fetch('/api/bookings', { headers: authHeader })
         .then(res => res.json())
         .then(data => {
           setBookings(data.data || []);
@@ -52,14 +54,32 @@ export default function TenantBookings() {
         .catch(() => {});
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
   const handleUpdateStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/bookings/${id}/payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isApproved: true, status })
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      let endpoint = `/api/bookings/${id}/status`;
+      let method = 'PUT';
+      let body: any = { status };
+
+      if (status === 'CHECKED_IN') {
+        endpoint = `/api/bookings/${id}/check-in`;
+        method = 'POST';
+        body = {};
+      } else if (status === 'CHECKED_OUT') {
+        endpoint = `/api/bookings/${id}/check-out`;
+        method = 'POST';
+        body = {};
+      }
+
+      await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader
+        },
+        body: method === 'POST' ? undefined : JSON.stringify(body)
       });
       fetchBookings();
     } catch (err) {

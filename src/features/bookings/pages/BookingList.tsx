@@ -35,7 +35,7 @@ export default function BookingList({ onNavigate }: { onNavigate: (path: string)
   };
 
   const loadProperties = () => {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch('/api/properties', { headers })
       .then(res => res.json())
       .then(data => setProperties(data.data || []))
@@ -44,7 +44,7 @@ export default function BookingList({ onNavigate }: { onNavigate: (path: string)
 
   const loadBookings = () => {
     setLoading(true);
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`/api/bookings${buildQuery()}`, { headers })
       .then(res => res.json())
       .then(data => {
