@@ -45,7 +45,7 @@ export function AppRoutes({ path, params, user, onNavigate }: RoutesProps) {
   if (path === '/forgot-password') return <ForgotPassword onNavigate={onNavigate} />;
   if (path === '/reset-password') return <ResetPassword onNavigate={onNavigate} params={params} />;
   if (path.startsWith('/admin')) return <AdminPanel path={path} onNavigate={onNavigate} />;
-  if (path.startsWith('/property/')) return <PropertyDetail propertyId={path.split('/').pop() || ''} onNavigate={onNavigate} />;
+  if (path.startsWith('/property/')) return <PropertyDetail propertyId={path.split('/').pop() || ''} onNavigate={onNavigate} params={params} />;
   return <AppGuardRoutes path={path} params={params} user={user} onNavigate={onNavigate} />;
 }
 
@@ -56,7 +56,7 @@ function AppGuardRoutes({ path, params, user, onNavigate }: RoutesProps) {
   if (path === '/settings') return <ProtectedRoute fallbackNavigate={onNavigate}><Settings /></ProtectedRoute>;
   if (path === '/security') return <ProtectedRoute fallbackNavigate={onNavigate}><Security /></ProtectedRoute>;
   if (path === '/my-bookings' || path === '/favorites' || path === '/traveler-dashboard') {
-    return <UserRoute fallbackNavigate={onNavigate}><TravelerDashboard /></UserRoute>;
+    return <UserRoute fallbackNavigate={onNavigate}><TravelerDashboard onNavigate={onNavigate} /></UserRoute>;
   }
   return <TenantAndBookingRoutes path={path} params={params} user={user} onNavigate={onNavigate} />;
 }
@@ -83,7 +83,7 @@ function OperationsAndBookingDetailRoutes({ path, params, user, onNavigate }: Ro
   if (path === '/reservations') {
     return user?.role === 'TENANT'
       ? <TenantRoute fallbackNavigate={onNavigate}><TenantLayout activeTab="reservations" onSelectTab={(t) => onNavigate('/' + t)}><TenantBookings /></TenantLayout></TenantRoute>
-      : <UserRoute fallbackNavigate={onNavigate}><TravelerDashboard /></UserRoute>;
+      : <UserRoute fallbackNavigate={onNavigate}><TravelerDashboard onNavigate={onNavigate} /></UserRoute>;
   }
   if (path === '/finance') {
     return <TenantRoute fallbackNavigate={onNavigate}><TenantLayout activeTab="finance" onSelectTab={(t) => onNavigate('/' + t)}><TenantFinancePage onNavigate={onNavigate} /></TenantLayout></TenantRoute>;

@@ -81,6 +81,7 @@ export interface Property {
   peakMultiplier?: number;
   peakSeasonName?: string | null;
   originalBasePrice?: number;
+  peakSeasonRates?: PeakSeasonRate[];
 }
 
 export interface Room {
@@ -94,6 +95,7 @@ export interface Room {
   wing?: string;
   floor?: string;
   image?: string;
+  availabilities?: RoomAvailability[];
 }
 
 export interface RoomAvailability {
@@ -111,6 +113,9 @@ export interface PeakSeasonRate {
   endDate: string; // YYYY-MM-DD
   rateMultiplier: number; // e.g. 1.25 for 25% premium
   name: string;
+  roomId?: string | null;
+  adjustmentType?: string;
+  adjustmentValue?: number;
 }
 
 export interface Booking {

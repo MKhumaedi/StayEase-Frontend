@@ -3,6 +3,7 @@ export interface PropertyInfo {
   name: string;
   imageUrls: string[];
   city: string;
+  slug?: string;
 }
 
 export interface RoomInfo {

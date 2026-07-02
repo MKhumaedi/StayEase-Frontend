@@ -13,7 +13,11 @@ function getInitials(name?: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export default function TravelerDashboard() {
+interface TravelerDashboardProps {
+  onNavigate?: (path: string, params?: any) => void;
+}
+
+export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps) {
   const { user, token } = useAuth();
   const { language, formatCurrencyIDR } = useLanguage();
   const [activeReviewBooking, setActiveReviewBooking] = useState<any | null>(null);
@@ -43,12 +47,26 @@ export default function TravelerDashboard() {
   const performReviewSubmission = async () => {
     try {
       setModalError(null);
-      await sendReview(activeReviewBooking.id, selectedRating, commentText, reviewIdempKey);
+      await sendReview(activeReviewBooking.id, selectedRating, commentText, reviewIdempKey, token);
       rotateReviewKey();
       setActiveReviewBooking(null);
       setRefreshKey(prev => prev + 1);
     } catch (err: any) {
-      setModalError(err.message || 'An error occurred.');
+      const msg = err.message || '';
+      if (
+        msg.includes('Authorization token required') || 
+        msg.includes('authorization token') || 
+        msg.includes('expired') || 
+        msg.includes('Unauthorized')
+      ) {
+        setModalError(
+          language === 'en'
+            ? 'Your login session has expired. Please sign in again to continue.'
+            : 'Sesi login Anda telah berakhir. Silakan masuk kembali untuk melanjutkan.'
+        );
+      } else {
+        setModalError(err.message || 'An error occurred.');
+      }
     }
   };
 
@@ -106,7 +124,7 @@ export default function TravelerDashboard() {
             </h2>
           </div>
 
-          <TravelerBookingsPage key={refreshKey} token={token} onReview={handleOpenReviewModal} />
+          <TravelerBookingsPage key={refreshKey} token={token} onReview={handleOpenReviewModal} onNavigate={onNavigate} />
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-slate-100 h-fit">
@@ -142,10 +160,17 @@ export default function TravelerDashboard() {
   );
 }
 
-async function sendReview(bookingId: string, rating: number, comment: string, key: string) {
+async function sendReview(bookingId: string, rating: number, comment: string, key: string, token?: string | null) {
+  const headers: HeadersInit = { 
+    'Content-Type': 'application/json', 
+    'x-idempotency-key': key 
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const res = await fetch('/api/reviews', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-idempotency-key': key },
+    headers,
     body: JSON.stringify({ bookingId, rating, comment: comment.trim() })
   });
   const data = await res.json();

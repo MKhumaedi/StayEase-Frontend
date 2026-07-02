@@ -263,11 +263,11 @@ export default function AdminPanel({ path = '/admin', onNavigate = () => {} }: {
     setPayments(prev => prev.map(p => p.id === bookingId ? { ...p, status: 'CANCELLED' } : p));
   };
 
-  const handleToggleReviewVisibility = async (reviewId: string, isHidden: boolean) => {
+  const handleToggleReviewVisibility = async (reviewId: string, isHidden: boolean, reason?: string) => {
     try {
       const res = await fetchAdmin(`/api/admin/reviews/${reviewId}/status`, {
         method: 'PUT',
-        body: JSON.stringify({ isHidden })
+        body: JSON.stringify({ isHidden, reason })
       });
       if (res.success) {
         setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...res.review } : r));
@@ -276,6 +276,38 @@ export default function AdminPanel({ path = '/admin', onNavigate = () => {} }: {
       }
     } catch (err: any) {
       throw new Error(err.message || 'Review visibility update failed');
+    }
+  };
+
+  const handleUpdateReview = async (reviewId: string, rating: number, comment: string, reason?: string) => {
+    try {
+      const res = await fetchAdmin(`/api/admin/reviews/${reviewId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ rating, comment, reason })
+      });
+      if (res.success) {
+        setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...res.review } : r));
+        const logsData = await fetchAdmin('/api/admin/audit-logs');
+        if (logsData.success) setAuditLogs(logsData.logs);
+      }
+    } catch (err: any) {
+      throw new Error(err.message || 'Review update failed');
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string, reason?: string) => {
+    try {
+      const res = await fetchAdmin(`/api/admin/reviews/${reviewId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason })
+      });
+      if (res.success) {
+        setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...res.review } : r));
+        const logsData = await fetchAdmin('/api/admin/audit-logs');
+        if (logsData.success) setAuditLogs(logsData.logs);
+      }
+    } catch (err: any) {
+      throw new Error(err.message || 'Review delete failed');
     }
   };
 
@@ -414,7 +446,10 @@ export default function AdminPanel({ path = '/admin', onNavigate = () => {} }: {
       {activeTab === 'reviews' && (
         <ReviewManagement 
           reviews={reviews} 
+          auditLogs={auditLogs}
           onToggleReviewVisibility={handleToggleReviewVisibility} 
+          onUpdateReview={handleUpdateReview}
+          onDeleteReview={handleDeleteReview}
         />
       )}
 

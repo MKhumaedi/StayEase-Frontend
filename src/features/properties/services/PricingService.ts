@@ -39,6 +39,8 @@ export const PricingService = {
         endDate: string;
         rateMultiplier: number | string;
         roomId?: string | null;
+        adjustmentType?: string;
+        adjustmentValue?: number | string;
       }>;
     },
     room: {
@@ -82,7 +84,11 @@ export const PricingService = {
           const chosenPeak = roomPeak || defaultPeak || matchingPeaks[0];
 
           if (chosenPeak) {
-            nightRate = Math.round(baseNightlyRate * Number(chosenPeak.rateMultiplier));
+            if (chosenPeak.adjustmentType === 'FIXED_AMOUNT_INCREASE') {
+              nightRate = baseNightlyRate + Number(chosenPeak.adjustmentValue);
+            } else {
+              nightRate = Math.round(baseNightlyRate * Number(chosenPeak.rateMultiplier));
+            }
           }
         }
       }
