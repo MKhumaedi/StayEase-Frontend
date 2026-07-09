@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useLanguage } from '../../../shared/i18n';
 import { 
@@ -13,7 +13,14 @@ import {
   Check, 
   CheckCircle2, 
   Clock,
-  Loader2
+  Loader2,
+  Search,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  User,
+  Building2,
+  RotateCcw
 } from 'lucide-react';
 import TodayCheckInPage from './TodayCheckInPage';
 import TodayStayingPage from './TodayStayingPage';
@@ -60,6 +67,15 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
   const [housekeeping, setHousekeeping] = useState<HousekeepingTask[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter & Search States (Housekeeping only)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProperty, setSelectedProperty] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedStaff, setSelectedStaff] = useState('');
+  
+  // Expanded room cards map state
+  const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
 
   // Add maintenance modal fields
   const [showAddMaintenance, setShowAddMaintenance] = useState(false);
@@ -217,6 +233,54 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
     }
   };
 
+  // --- HOUSEKEEPING DERIVED STATS & FILTERING ---
+  const counts = useMemo(() => {
+    const accum = { READY: 0, CLEANING: 0, DIRTY: 0, INSPECTING: 0, OUT_OF_SERVICE: 0 };
+    housekeeping.forEach(hk => {
+      if (accum[hk.status] !== undefined) {
+        accum[hk.status]++;
+      }
+    });
+    return accum;
+  }, [housekeeping]);
+
+  const uniqueProperties = useMemo(() => 
+    Array.from(new Set(housekeeping.map(hk => hk.propertyName).filter(Boolean))),
+    [housekeeping]
+  );
+
+  const uniqueStaff = useMemo(() => 
+    Array.from(new Set(housekeeping.map(hk => hk.assignedTo).filter(Boolean))),
+    [housekeeping]
+  );
+
+  const filteredHousekeeping = useMemo(() => {
+    return housekeeping.filter(hk => {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        hk.roomName.toLowerCase().includes(query) || 
+        hk.propertyName.toLowerCase().includes(query) || 
+        (hk.assignedTo && hk.assignedTo.toLowerCase().includes(query));
+      
+      const matchesProperty = !selectedProperty || hk.propertyName === selectedProperty;
+      const matchesStatus = !selectedStatus || hk.status === selectedStatus;
+      const matchesStaff = !selectedStaff || hk.assignedTo === selectedStaff;
+
+      return matchesSearch && matchesProperty && matchesStatus && matchesStaff;
+    });
+  }, [housekeeping, searchQuery, selectedProperty, selectedStatus, selectedStaff]);
+
+  const handleToggleCardExpand = (id: string) => {
+    setExpandedRooms(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedProperty('');
+    setSelectedStatus('');
+    setSelectedStaff('');
+  };
+
   return (
     <div className="flex flex-col gap-6 font-sans text-slate-800">
       
@@ -290,8 +354,8 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
         )}
 
         {activeTab === 'housekeeping' && (
-          <div className="p-4 flex flex-col gap-6">
-            <div className="flex justify-between items-center">
+          <div className="p-4 flex flex-col gap-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                   {en ? 'Live Housekeeping Console' : 'Arsip Pantauan Housekeeping Real-time'}
@@ -302,76 +366,212 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
               </div>
             </div>
 
+            {/* Redesigned Metric Analytics Header */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {[
+                { status: 'READY', label: en ? 'Ready' : 'Siap Huni', color: 'border-emerald-200 bg-emerald-50/40 text-emerald-700', value: counts.READY },
+                { status: 'CLEANING', label: en ? 'Cleaning' : 'Dibersihkan', color: 'border-blue-200 bg-blue-50/40 text-blue-700', value: counts.CLEANING },
+                { status: 'DIRTY', label: en ? 'Dirty' : 'Kotor', color: 'border-rose-200 bg-rose-50/40 text-rose-700', value: counts.DIRTY },
+                { status: 'INSPECTING', label: en ? 'Inspecting' : 'Diinspeksi', color: 'border-purple-200 bg-purple-50/40 text-purple-700', value: counts.INSPECTING },
+                { status: 'OUT_OF_SERVICE', label: en ? 'Out of Service' : 'Rusak/Perbaikan', color: 'border-slate-200 bg-slate-50/60 text-slate-700', value: counts.OUT_OF_SERVICE }
+              ].map(stat => (
+                <div 
+                  key={stat.status} 
+                  onClick={() => setSelectedStatus(selectedStatus === stat.status ? '' : stat.status)}
+                  className={`border p-3 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:scale-[1.01] shadow-3xs ${stat.color} ${selectedStatus === stat.status ? 'ring-2 ring-indigo-600 ring-offset-1' : ''}`}
+                >
+                  <span className="text-[11px] font-black tracking-wide uppercase">{stat.label}</span>
+                  <span className="text-lg font-black font-display">{stat.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Filter and Search Action Toolbar */}
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 flex flex-wrap gap-2 items-center text-xs">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder={en ? "Search room, property, or staff..." : "Cari kamar, properti, atau staf..."}
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-white pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
+                />
+              </div>
+
+              <select 
+                value={selectedProperty} 
+                onChange={e => setSelectedProperty(e.target.value)}
+                className="bg-white border border-slate-200 p-1.5 rounded-lg font-bold text-slate-600 focus:outline-hidden text-xs cursor-pointer"
+              >
+                <option value="">{en ? 'All Properties' : 'Semua Properti'}</option>
+                {uniqueProperties.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+
+              <select 
+                value={selectedStaff} 
+                onChange={e => setSelectedStaff(e.target.value)}
+                className="bg-white border border-slate-200 p-1.5 rounded-lg font-bold text-slate-600 focus:outline-hidden text-xs cursor-pointer"
+              >
+                <option value="">{en ? 'All Staff' : 'Semua Staf'}</option>
+                {uniqueStaff.map(s => <option key={s} value={s}>{s || (en ? 'Unassigned' : 'Belum Ditugaskan')}</option>)}
+              </select>
+
+              {(searchQuery || selectedProperty || selectedStatus || selectedStaff) && (
+                <button 
+                  onClick={handleResetFilters}
+                  className="p-1.5 text-slate-500 hover:text-indigo-900 font-bold flex items-center gap-1 transition-colors border-0 bg-transparent cursor-pointer"
+                  title={en ? "Reset Filters" : "Reset Filter"}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-[11px]">{en ? 'Reset' : 'Atur Ulang'}</span>
+                </button>
+              )}
+            </div>
+
             {loading ? (
               <div className="flex justify-center items-center py-12 text-indigo-900">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
-            ) : housekeeping.length === 0 ? (
+            ) : filteredHousekeeping.length === 0 ? (
               <div className="py-16 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs">
-                {en ? 'No rooms found under management.' : 'Belum ada kamar yang diurus.'}
+                {en ? 'No matching rooms found.' : 'Tidak ada unit kamar yang sesuai kriteria.'}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {housekeeping.map(hk => (
-                  <div key={hk.id} className="bg-slate-50/70 p-5 rounded-2xl border border-slate-150 relative flex flex-col justify-between min-h-[300px]">
-                    <div>
-                      {/* Badge */}
-                      <div className="flex justify-between items-center mb-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                          hk.status === 'READY' ? 'bg-emerald-50 text-emerald-600' :
-                          hk.status === 'CLEANING' ? 'bg-blue-50 text-blue-600 animate-pulse' :
-                          hk.status === 'INSPECTING' ? 'bg-purple-50 text-purple-600' :
-                          hk.status === 'OUT_OF_SERVICE' ? 'bg-slate-200 text-slate-700' :
-                          'bg-red-50 text-rose-600'
-                        }`}>
-                          {hk.status}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold">{hk.assignedTo}</span>
-                      </div>
+              /* Grid Layout Matrix */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredHousekeeping.map(hk => {
+                  const totalTasks = hk.checklist.length;
+                  const doneTasks = hk.checklist.filter(t => t.done).length;
+                  const progressPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+                  const isExpanded = !!expandedRooms[hk.id];
 
-                      <h4 className="font-bold text-sm text-slate-800 font-display leading-tight">{hk.roomName}</h4>
-                      <span className="text-[10px] text-slate-450 block font-semibold mb-3">{hk.propertyName}</span>
+                  return (
+                    <div 
+                      key={hk.id} 
+                      className={`bg-white rounded-xl border transition-all flex flex-col justify-between ${
+                        isExpanded ? 'border-indigo-200 shadow-xs ring-1 ring-indigo-50/50' : 'border-slate-150 hover:border-slate-300 shadow-3xs'
+                      }`}
+                    >
+                      {/* Card Workspace Header */}
+                      <div className="p-4 flex flex-col gap-2.5">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm text-slate-900 font-display leading-tight truncate" title={hk.roomName}>
+                              {hk.roomName}
+                            </h4>
+                            <div className="flex items-center gap-1 mt-0.5 text-slate-400">
+                              <Building2 className="w-3 h-3 shrink-0" />
+                              <span className="text-[10px] font-semibold truncate max-w-[140px]">{hk.propertyName}</span>
+                            </div>
+                          </div>
+                          
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                            hk.status === 'READY' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            hk.status === 'CLEANING' ? 'bg-blue-50 text-blue-700 border border-blue-200 animate-pulse' :
+                            hk.status === 'INSPECTING' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                            hk.status === 'OUT_OF_SERVICE' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                            'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {hk.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
 
-                      {/* Task checklist */}
-                      <div className="flex flex-col gap-2 mt-2">
-                        {hk.checklist.map((item, idx) => (
-                          <label 
-                            key={idx} 
-                            onClick={() => handleToggleHKCheck(hk.id, idx)}
-                            className="flex items-start gap-2 text-xs font-semibold text-slate-600 select-none cursor-pointer hover:text-slate-900 transition-colors"
-                          >
-                            <input 
-                              type="checkbox" 
-                              checked={item.done} 
-                              readOnly
-                              className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer" 
+                        {/* Middle Meta Info Area */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium bg-slate-50/60 p-2 rounded-lg border border-slate-100">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <User className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate font-semibold">
+                              {hk.assignedTo ? hk.assignedTo : <span className="text-slate-400 italic">{en ? 'Unassigned' : 'Belum Ada Staf'}</span>}
+                            </span>
+                          </div>
+                          <span className="text-slate-400 shrink-0 font-bold">{doneTasks}/{totalTasks} Tasks</span>
+                        </div>
+
+                        {/* Visual Progress bar widget */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                            <span>{en ? 'Progress' : 'Kemajuan'}</span>
+                            <span className="text-slate-600">{progressPct}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className={`h-full transition-all duration-300 rounded-full ${
+                                progressPct === 100 ? 'bg-emerald-500' : 'bg-indigo-600'
+                              }`}
+                              style={{ width: `${progressPct}%` }}
                             />
-                            <span className={`${item.done ? 'line-through text-slate-400' : ''}`}>{item.text}</span>
-                          </label>
-                        ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expandable Accordion Checklist Panel */}
+                      {isExpanded && totalTasks > 0 && (
+                        <div className="px-4 pb-3 border-t border-slate-100 pt-3 bg-slate-50/50 flex flex-col gap-1.5">
+                          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide mb-1">
+                            {en ? 'Task Checklist' : 'Daftar Tugas Kebersihan'}
+                          </p>
+                          {hk.checklist.map((item, idx) => (
+                            <label 
+                              key={idx} 
+                              onClick={() => handleToggleHKCheck(hk.id, idx)}
+                              className="flex items-start gap-2 text-[11px] font-semibold text-slate-600 select-none cursor-pointer hover:text-slate-900 transition-colors py-0.5"
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={item.done} 
+                                readOnly
+                                className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer" 
+                              />
+                              <span className={`break-words ${item.done ? 'line-through text-slate-400 font-normal' : ''}`}>{item.text}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Card Operational Control Block Footer */}
+                      <div className="p-3 border-t border-slate-100 bg-white rounded-b-xl flex flex-col gap-2">
+                        {/* Segmented Control Line Selector */}
+                        <div className="flex p-0.5 bg-slate-100 rounded-lg overflow-x-auto scrollbar-none border border-slate-200/40">
+                          {[
+                            { key: 'DIRTY', label: en ? 'Dirty' : 'Kotor' },
+                            { key: 'CLEANING', label: en ? 'Clean' : 'Seka' },
+                            { key: 'INSPECTING', label: en ? 'Insp' : 'Cek' },
+                            { key: 'READY', label: en ? 'Ready' : 'Siap' },
+                            { key: 'OUT_OF_SERVICE', label: en ? 'OOS' : 'OOS' }
+                          ].map(btn => {
+                            const isCurrent = hk.status === btn.key;
+                            return (
+                              <button
+                                key={btn.key}
+                                onClick={() => handleUpdateHKStatus(hk.id, btn.key as any)}
+                                title={btn.key}
+                                className={`flex-1 text-[9px] font-black uppercase tracking-wider py-1 px-1 rounded-md transition-all border-0 cursor-pointer min-w-[36px] ${
+                                  isCurrent 
+                                    ? 'bg-white text-indigo-950 shadow-3xs font-black ring-1 ring-black/5' 
+                                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+                                }`}
+                              >
+                                {btn.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Interactive Toggle Trigger Bar */}
+                        {totalTasks > 0 && (
+                          <button
+                            onClick={() => handleToggleCardExpand(hk.id)}
+                            className="w-full py-1 text-[10px] text-slate-500 hover:text-indigo-900 bg-slate-50 hover:bg-slate-100 rounded-md font-bold transition-all flex items-center justify-center gap-1 border-0 cursor-pointer"
+                          >
+                            <span>{isExpanded ? (en ? 'Hide Tasks' : 'Sembunyikan Tugas') : (en ? 'View Tasks' : 'Lihat Tugas')}</span>
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        )}
                       </div>
                     </div>
-
-                    {/* Operational status update buttons */}
-                    <div className="border-t border-slate-200 mt-4 pt-3 flex flex-wrap gap-1">
-                      {[
-                        { key: 'DIRTY', label: 'Dirty', color: 'bg-rose-55 bg-rose-50 text-rose-600 border-rose-200' },
-                        { key: 'CLEANING', label: 'Cleaning', color: 'bg-blue-55 bg-blue-50 text-blue-600 border-blue-200' },
-                        { key: 'INSPECTING', label: 'Inspecting', color: 'bg-purple-55 bg-purple-50 text-purple-600 border-purple-200' },
-                        { key: 'READY', label: 'Ready', color: 'bg-emerald-55 bg-emerald-50 text-emerald-600 border-emerald-200' },
-                        { key: 'OUT_OF_SERVICE', label: 'Out of Service', color: 'bg-slate-205 bg-slate-200 text-slate-600 border-slate-300' }
-                      ].map(btn => (
-                        <button 
-                          key={btn.key}
-                          onClick={() => handleUpdateHKStatus(hk.id, btn.key as any)} 
-                          className={`flex-1 min-w-[70px] py-1 px-1.5 text-[9px] rounded-lg font-extrabold border uppercase tracking-wider ${hk.status === btn.key ? btn.color : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-                        >
-                          {btn.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Property, PropertyCategory } from '../../../types';
-import { Plus, Layout, Loader2, Building2, Hotel, CalendarRange } from 'lucide-react';
+import { Plus, Layout, Loader2, Building2, Hotel, CalendarRange, Sparkles, MapPin, Clock, Search } from 'lucide-react';
 import { useLanguage } from '../../../shared/i18n';
 import { usePropertyView } from '../../properties/hooks/usePropertyView';
 import { PropertyListView } from '../../properties/components/PropertyListView';
@@ -25,10 +25,21 @@ const DEFAULT_CATEGORIES: PropertyCategory[] = [
 
 export default function TenantProperties({ initialTab }: { initialTab?: 'list' | 'rooms' | 'calendar' }) {
   const { language } = useLanguage();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [categories, setCategories] = useState<PropertyCategory[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
+
+  // Drafts state
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [editingDraft, setEditingDraft] = useState<any | null>(null);
+
+  // Search, filter, sort & pagination states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'>('ALL');
+  const [sortBy, setSortBy] = useState<'newest' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   // Sub-tabs state control
   const [activeSubTab, setActiveSubTab] = useState<'list' | 'rooms' | 'calendar'>(initialTab || 'list');
@@ -53,6 +64,77 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
   const { idempotencyKey: saveIdempKey, rotateKey: rotateSaveKey } = useIdempotency();
   const { idempotencyKey: deleteIdempKey, rotateKey: rotateDeleteKey } = useIdempotency();
 
+  // Load drafts
+  const loadDrafts = () => {
+    const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+    if (savedDraftsRaw) {
+      try {
+        const parsed = JSON.parse(savedDraftsRaw);
+        const tenantId = user?.id || 'anonymous';
+        const filtered = parsed.filter((d: any) => d.tenantId === tenantId);
+        setDrafts(filtered);
+      } catch (e) {
+        console.error('Failed to parse drafts:', e);
+      }
+    } else {
+      setDrafts([]);
+    }
+  };
+
+  useEffect(() => {
+    loadDrafts();
+  }, [user]);
+
+  // Active Draft Browser Refresh restore
+  useEffect(() => {
+    const activeDraftId = localStorage.getItem('stay_ease_active_draft_id');
+    if (activeDraftId) {
+      const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+      if (savedDraftsRaw) {
+        try {
+          const parsed = JSON.parse(savedDraftsRaw);
+          const activeDraft = parsed.find((d: any) => d.id === activeDraftId);
+          if (activeDraft) {
+            setEditingProperty(null);
+            setEditingDraft(activeDraft);
+            setShowWizard(true);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
+
+  // Reset pagination on search, filter or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, sortBy]);
+
+  const handleContinueDraft = (draft: any) => {
+    setEditingProperty(null);
+    setEditingDraft(draft);
+    setShowWizard(true);
+  };
+
+  const handleDeleteDraft = (draftId: string) => {
+    const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+    if (savedDraftsRaw) {
+      try {
+        const parsed = JSON.parse(savedDraftsRaw);
+        const filtered = parsed.filter((d: any) => d.id !== draftId);
+        localStorage.setItem('stay_ease_property_drafts', JSON.stringify(filtered));
+        
+        const activeDraftId = localStorage.getItem('stay_ease_active_draft_id');
+        if (activeDraftId === draftId) {
+          localStorage.removeItem('stay_ease_active_draft_id');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    loadDrafts();
+  };
 
   // Fetch initial parameters
   const retrieveData = async () => {
@@ -159,6 +241,71 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
 
   const en = language === 'en';
 
+  const mappedDrafts = drafts.map(d => ({
+    id: d.id,
+    name: d.form.name || (en ? 'Untitled Property' : 'Properti Tanpa Nama'),
+    categoryId: d.form.categoryId,
+    description: d.form.description,
+    address: d.form.fullAddress || '',
+    location: d.form.city && d.form.province ? `${d.form.city}, ${d.form.province}` : (d.form.fullAddress || ''),
+    city: d.form.city || '',
+    province: d.form.province || '',
+    imageUrls: d.form.imageUrls || [],
+    basePrice: d.form.basePrice || 0,
+    status: 'DRAFT' as const,
+    rating: 0,
+    reviewCount: 0,
+    isDraft: true,
+    completionPercentage: d.completionPercentage,
+    currentStep: d.currentStep,
+    draftUpdatedAt: d.draftUpdatedAt,
+    rawDraft: d
+  }));
+
+  const combinedList = [...mappedDrafts, ...properties];
+
+  // Apply search
+  let searchedList = combinedList;
+  if (searchTerm.trim() !== '') {
+    const query = searchTerm.toLowerCase();
+    searchedList = searchedList.filter(p => 
+      p.name.toLowerCase().includes(query) ||
+      (p.location && p.location.toLowerCase().includes(query)) ||
+      (p.description && p.description.toLowerCase().includes(query))
+    );
+  }
+
+  // Apply status filter
+  let filteredList = searchedList;
+  if (statusFilter !== 'ALL') {
+    filteredList = filteredList.filter(p => p.status.toUpperCase() === statusFilter);
+  }
+
+  // Apply sorting
+  const sortedList = [...filteredList].sort((a, b) => {
+    if (sortBy === 'name_asc') {
+      return a.name.localeCompare(b.name);
+    } else if (sortBy === 'name_desc') {
+      return b.name.localeCompare(a.name);
+    } else if (sortBy === 'price_asc') {
+      return a.basePrice - b.basePrice;
+    } else if (sortBy === 'price_desc') {
+      return b.basePrice - a.basePrice;
+    } else {
+      // newest: drafts first (sorted by draftUpdatedAt) then published
+      const timeA = (a as any).isDraft ? new Date((a as any).draftUpdatedAt).getTime() : 0;
+      const timeB = (b as any).isDraft ? new Date((b as any).draftUpdatedAt).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      // fallback to name comparison if neither are drafts
+      return a.name.localeCompare(b.name);
+    }
+  });
+
+  // Apply pagination
+  const totalItems = sortedList.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const paginatedProperties = sortedList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div id="tenant-properties-page" className="flex flex-col gap-6 pb-12">
       {/* Extranet Header Panel */}
@@ -203,11 +350,11 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border-0 ${
-                activeSubTab === tab.id 
-                  ? 'bg-indigo-900 text-white shadow-xs' 
-                  : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50'
-              }`}
+              className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border-0 bg-transparent text-slate-600 hover:text-indigo-900 hover:bg-slate-50"
+              style={{
+                backgroundColor: activeSubTab === tab.id ? '#312e81' : 'transparent',
+                color: activeSubTab === tab.id ? '#ffffff' : '#475569'
+              }}
             >
               <TabIcon className="w-3.5 h-3.5" />
               <span>{tab.name}</span>
@@ -221,12 +368,72 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
         
         {activeSubTab === 'list' && (
           <>
+            {/* Search, Filter, Sort and Pagination Bar */}
+            <div className="px-5 py-4 bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-stretch sm:items-center">
+                {/* Search input */}
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={en ? "Search properties..." : "Cari properti..."}
+                    className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-slate-850"
+                  />
+                </div>
+
+                {/* Status Filter buttons/tabs */}
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  {(['ALL', 'DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED'] as const).map((status) => {
+                    const label = status === 'ALL' ? (en ? 'All' : 'Semua') :
+                                  status === 'DRAFT' ? (en ? 'Draft' : 'Draf') :
+                                  status === 'ACTIVE' ? (en ? 'Active' : 'Aktif') :
+                                  status === 'INACTIVE' ? (en ? 'Inactive' : 'Nonaktif') :
+                                  status === 'ARCHIVED' ? (en ? 'Archived' : 'Arsip') : status;
+                    
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all border-0 ${
+                          statusFilter === status
+                            ? 'bg-white text-indigo-950 shadow-xs font-black'
+                            : 'text-slate-500 hover:text-indigo-955 hover:bg-white/50 bg-transparent'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sort selector */}
+              <div className="flex items-center gap-2 w-full md:w-auto justify-between sm:justify-start">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  {en ? 'Sort By' : 'Urutkan'}
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e: any) => setSortBy(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-indigo-500"
+                >
+                  <option value="newest">{en ? 'Recently Updated' : 'Baru Diperbarui'}</option>
+                  <option value="name_asc">{en ? 'Name (A-Z)' : 'Nama (A-Z)'}</option>
+                  <option value="name_desc">{en ? 'Name (Z-A)' : 'Nama (Z-A)'}</option>
+                  <option value="price_asc">{en ? 'Price: Low to High' : 'Harga: Rendah ke Tinggi'}</option>
+                  <option value="price_desc">{en ? 'Price: High to Low' : 'Harga: Tinggi ke Rendah'}</option>
+                </select>
+              </div>
+            </div>
+
             {loading ? (
               <div id="properties-loading-stage" className="py-24 flex flex-col items-center justify-center text-slate-400">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
                 <span className="text-[10px] uppercase font-black tracking-widest">{en ? 'Retrieving listings index...' : 'Memuat properti...'}</span>
               </div>
-            ) : properties.length === 0 ? (
+            ) : combinedList.length === 0 ? (
               <div id="properties-empty-stage" className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-205">
                 <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <h3 className="font-extrabold text-slate-800 text-sm">{en ? 'No Stays Registered' : 'Belum Ada Properti Terdaftar'}</h3>
@@ -238,26 +445,71 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
                   <Plus className="w-3.5 h-3.5" /> <span>{en ? 'List First Property' : 'Daftarkan Properti Pertama'}</span>
                 </button>
               </div>
+            ) : sortedList.length === 0 ? (
+              <div id="properties-filtered-empty-stage" className="text-center py-20 bg-white">
+                <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="font-extrabold text-slate-800 text-sm">{en ? 'No Matching Properties' : 'Tidak Ada Properti yang Cocok'}</h3>
+                <p className="text-xs text-slate-450 mt-1 max-w-xs mx-auto">
+                  {en ? 'No listings found matching your search or filters. Try adjusting your filter settings.' : 'Tidak ada properti yang cocok dengan pencarian atau filter Anda. Silakan ubah filter Anda.'}
+                </p>
+                <button
+                  onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setSortBy('newest'); }}
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  <span>{en ? 'Reset Filters' : 'Atur Ulang Filter'}</span>
+                </button>
+              </div>
             ) : (
               <div id="properties-rendered-stage" className="transition-all duration-300">
                 {view === 'list' ? (
                   <PropertyListView 
-                    properties={properties} 
+                    properties={paginatedProperties} 
                     categories={categories}
                     onView={(p) => { setSelectedProperty(p); setShowDetail(true); }}
                     onEdit={(p) => { setEditingProperty(p); setShowWizard(true); }}
                     onDelete={(p) => { setPropertyToDelete(p); setShowDelete(true); }}
                     onToggleStatus={handleToggleStatus}
+                    onDeleteDraft={handleDeleteDraft}
+                    onContinueDraft={handleContinueDraft}
                   />
                 ) : (
                   <PropertyGridView 
-                    properties={properties} 
+                    properties={paginatedProperties} 
                     categories={categories}
                     onView={(p) => { setSelectedProperty(p); setShowDetail(true); }}
                     onEdit={(p) => { setEditingProperty(p); setShowWizard(true); }}
                     onDelete={(p) => { setPropertyToDelete(p); setShowDelete(true); }}
                     onToggleStatus={handleToggleStatus}
+                    onDeleteDraft={handleDeleteDraft}
+                    onContinueDraft={handleContinueDraft}
                   />
+                )}
+
+                {/* Pagination footer */}
+                {totalPages > 1 && (
+                  <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {en 
+                        ? `Showing ${Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)} to ${Math.min(totalItems, currentPage * itemsPerPage)} of ${totalItems} properties` 
+                        : `Menampilkan ${Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)} sampai ${Math.min(totalItems, currentPage * itemsPerPage)} dari ${totalItems} properti`}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {en ? 'Previous' : 'Sebelumnya'}
+                      </button>
+                      <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        {en ? 'Next' : 'Berikutnya'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -294,8 +546,14 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
         isOpen={showWizard} 
         categories={categories} 
         editingProperty={editingProperty} 
-        onClose={() => { setShowWizard(false); setEditingProperty(null); }} 
+        editingDraft={editingDraft}
+        onClose={() => { 
+          setShowWizard(false); 
+          setEditingProperty(null); 
+          setEditingDraft(null); 
+        }} 
         onSubmit={handleWizardSubmit} 
+        onSaveDraft={loadDrafts}
       />
     </div>
   );

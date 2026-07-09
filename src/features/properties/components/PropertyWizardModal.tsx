@@ -22,23 +22,33 @@ interface PropertyWizardModalProps {
   isOpen: boolean;
   categories: PropertyCategory[];
   editingProperty: Property | null;
+  editingDraft?: any | null;
   onClose: () => void;
   onSubmit: (formData: any) => Promise<void>;
+  onSaveDraft?: () => void;
 }
 
 export function PropertyWizardModal({
   isOpen,
   categories,
   editingProperty,
+  editingDraft,
   onClose,
-  onSubmit
+  onSubmit,
+  onSaveDraft
 }: PropertyWizardModalProps) {
   const { language, formatCurrencyIDR } = useLanguage();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  // Draft and Auto-Save States
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const isFirstRender = React.useRef(true);
+  const debounceTimer = React.useRef<NodeJS.Timeout | null>(null);
 
   // Core Form State
   const [form, setForm] = useState<any>({
@@ -49,88 +59,183 @@ export function PropertyWizardModal({
     securityDeposit: 0, blockedDates: [], status: 'ACTIVE', rooms: []
   });
 
-  // Pre-populate if editing
+  // Reset first render ref on modal open
   useEffect(() => {
-    if (editingProperty) {
-      setForm({
-        name: editingProperty.name,
-        categoryId: editingProperty.categoryId || categories[0]?.id || '',
-        description: editingProperty.description,
-        fullAddress: editingProperty.address || editingProperty.location,
-        city: editingProperty.city || '',
-        province: editingProperty.province || '',
-        postalCode: (editingProperty as any).postalCode || '',
-        latitude: editingProperty.latitude || -8.7209,
-        longitude: editingProperty.longitude || 115.1691,
-        imageUrls: editingProperty.imageUrls || [],
-        coverImageIndex: 0,
-        bedrooms: editingProperty.beds || 1,
-        bathrooms: editingProperty.baths || 1,
-        guests: editingProperty.guests || 2,
-        areaSqm: editingProperty.sqft || 35,
-        basePrice: editingProperty.basePrice,
-        cleaningFee: editingProperty.cleaningFee || 0,
-        serviceFee: editingProperty.serviceFee || 0,
-        securityDeposit: editingProperty.securityDeposit || 0,
-        blockedDates: (editingProperty as any).blockedDates || [],
-        status: editingProperty.status,
-        rooms: []
-      });
-
-      // Fetch actual rooms from server to ensure editing works with DB rooms
-      fetch(`/api/properties/${editingProperty.id}`, token ? {
-        headers: { 'Authorization': `Bearer ${token}` }
-      } : undefined)
-        .then(res => res.json())
-        .then(resData => {
-          if (resData && resData.rooms) {
-            setForm((prev: any) => ({
-              ...prev,
-              rooms: resData.rooms.map((r: any) => {
-                let parsedFloor = { bedCount: 1, bathCount: 1, quantity: 1 };
-                try {
-                  if (r.floor && r.floor.trim().startsWith('{')) {
-                    parsedFloor = JSON.parse(r.floor);
-                  }
-                } catch (e) {}
-
-                return {
-                  id: r.id,
-                  name: r.name,
-                  type: r.type,
-                  capacity: r.capacity,
-                  basePrice: r.basePrice || r.pricePerNight || 500000,
-                  description: r.wing || r.description || '',
-                  bedCount: parsedFloor.bedCount || 1,
-                  bathCount: parsedFloor.bathCount || 1,
-                  quantity: parsedFloor.quantity || 1,
-                  image: r.image || ''
-                };
-              })
-            }));
-          }
-        })
-        .catch(err => {
-          console.error("Failed to load property rooms: ", err);
-        });
-    } else {
-      setForm({
-        name: '', categoryId: categories[0]?.id || '', description: '',
-        fullAddress: '', city: '', province: '', postalCode: '', latitude: -8.7209,
-        longitude: 115.1691, imageUrls: [], coverImageIndex: 0, bedrooms: 1,
-        bathrooms: 1, guests: 2, areaSqm: 35, basePrice: 500000, cleaningFee: 25000,
-        serviceFee: 15000, securityDeposit: 0, blockedDates: [], status: 'ACTIVE',
-        rooms: []
-      });
+    if (isOpen) {
+      isFirstRender.current = true;
+      setSaveStatus('idle');
     }
-    setCurrentStep(1);
-    setErrorMsg('');
-  }, [editingProperty, isOpen, categories]);
+  }, [isOpen]);
+
+  // Pre-populate if editing or restoring draft
+  useEffect(() => {
+    if (isOpen) {
+      if (editingDraft) {
+        setForm({
+          ...editingDraft.form
+        });
+        setCurrentStep(editingDraft.currentStep || 1);
+        setDraftId(editingDraft.id);
+        localStorage.setItem('stay_ease_active_draft_id', editingDraft.id);
+      } else if (editingProperty) {
+        setForm({
+          name: editingProperty.name,
+          categoryId: editingProperty.categoryId || categories[0]?.id || '',
+          description: editingProperty.description,
+          fullAddress: editingProperty.address || editingProperty.location,
+          city: editingProperty.city || '',
+          province: editingProperty.province || '',
+          postalCode: (editingProperty as any).postalCode || '',
+          latitude: editingProperty.latitude || -8.7209,
+          longitude: editingProperty.longitude || 115.1691,
+          imageUrls: editingProperty.imageUrls || [],
+          coverImageIndex: 0,
+          bedrooms: editingProperty.beds || 1,
+          bathrooms: editingProperty.baths || 1,
+          guests: editingProperty.guests || 2,
+          areaSqm: editingProperty.sqft || 35,
+          basePrice: editingProperty.basePrice,
+          cleaningFee: editingProperty.cleaningFee || 0,
+          serviceFee: editingProperty.serviceFee || 0,
+          securityDeposit: editingProperty.securityDeposit || 0,
+          blockedDates: (editingProperty as any).blockedDates || [],
+          status: editingProperty.status,
+          rooms: []
+        });
+        setDraftId(null);
+        localStorage.removeItem('stay_ease_active_draft_id');
+
+        // Fetch actual rooms from server to ensure editing works with DB rooms
+        fetch(`/api/properties/${editingProperty.id}`, token ? {
+          headers: { 'Authorization': `Bearer ${token}` }
+        } : undefined)
+          .then(res => res.json())
+          .then(resData => {
+            if (resData && resData.rooms) {
+              setForm((prev: any) => ({
+                ...prev,
+                rooms: resData.rooms.map((r: any) => {
+                  let parsedFloor = { bedCount: 1, bathCount: 1, quantity: 1 };
+                  try {
+                    if (r.floor && r.floor.trim().startsWith('{')) {
+                      parsedFloor = JSON.parse(r.floor);
+                    }
+                  } catch (e) {}
+
+                  return {
+                    id: r.id,
+                    name: r.name,
+                    type: r.type,
+                    capacity: r.capacity,
+                    basePrice: r.basePrice || r.pricePerNight || 500000,
+                    description: r.wing || r.description || '',
+                    bedCount: parsedFloor.bedCount || 1,
+                    bathCount: parsedFloor.bathCount || 1,
+                    quantity: parsedFloor.quantity || 1,
+                    image: r.image || ''
+                  };
+                })
+              }));
+            }
+          })
+          .catch(err => {
+            console.error("Failed to load property rooms: ", err);
+          });
+      } else {
+        const newDraftId = 'draft-' + Date.now();
+        setDraftId(newDraftId);
+        localStorage.setItem('stay_ease_active_draft_id', newDraftId);
+        setForm({
+          name: '', categoryId: categories[0]?.id || '', description: '',
+          fullAddress: '', city: '', province: '', postalCode: '', latitude: -8.7209,
+          longitude: 115.1691, imageUrls: [], coverImageIndex: 0, bedrooms: 1,
+          bathrooms: 1, guests: 2, areaSqm: 35, basePrice: 500000, cleaningFee: 25000,
+          serviceFee: 15000, securityDeposit: 0, blockedDates: [], status: 'DRAFT',
+          rooms: [], amenities: []
+        });
+        setCurrentStep(1);
+      }
+      setErrorMsg('');
+    }
+  }, [editingProperty, editingDraft, isOpen, categories]);
 
   const handleInputChange = (e: React.ChangeEvent<any>) => {
     const { name, value } = e.target;
     setForm((prev: any) => ({ ...prev, [name]: value }));
   };
+
+  const saveDraftHelper = (isManual: boolean, currentStepNum = currentStep, customForm = form) => {
+    if (!draftId || editingProperty) return;
+
+    const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+    let savedDrafts: any[] = [];
+    if (savedDraftsRaw) {
+      try {
+        savedDrafts = JSON.parse(savedDraftsRaw);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const completionPercent = Math.round((currentStepNum / 8) * 100);
+    const draftUpdatedAt = new Date().toISOString();
+
+    const newDraft = {
+      id: draftId,
+      tenantId: user?.id || 'anonymous',
+      currentStep: currentStepNum,
+      completionPercentage: completionPercent,
+      draftUpdatedAt,
+      status: 'DRAFT',
+      form: {
+        ...customForm,
+        status: 'DRAFT'
+      }
+    };
+
+    const existingIndex = savedDrafts.findIndex((d: any) => d.id === draftId);
+    if (existingIndex > -1) {
+      savedDrafts[existingIndex] = newDraft;
+    } else {
+      savedDrafts.push(newDraft);
+    }
+
+    localStorage.setItem('stay_ease_property_drafts', JSON.stringify(savedDrafts));
+    
+    if (isManual) {
+      localStorage.removeItem('stay_ease_active_draft_id');
+    }
+  };
+
+  // Auto Save debounced effect
+  useEffect(() => {
+    if (!isOpen || editingProperty || !draftId) return;
+
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setSaveStatus('saving');
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      saveDraftHelper(false, currentStep, form);
+      setSaveStatus('saved');
+      if (onSaveDraft) {
+        onSaveDraft();
+      }
+    }, 2000);
+
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [form, currentStep, isOpen, editingProperty, draftId]);
 
   const validateStep = (stepToValidate = currentStep): boolean => {
     setErrorMsg('');
@@ -189,7 +294,7 @@ export function PropertyWizardModal({
   const handlePrev = () => setCurrentStep(p => Math.max(1, p - 1));
 
   const handleCloseAttempt = () => {
-    if (!editingProperty && (form.name || form.description || form.imageUrls.length > 0)) {
+    if (!editingProperty) {
       setShowConfirmClose(true);
     } else {
       onClose();
@@ -200,7 +305,31 @@ export function PropertyWizardModal({
     setSubmitting(true);
     setErrorMsg('');
     try {
-      await onSubmit(form);
+      // Mark as published on submit
+      const finalForm = {
+        ...form,
+        status: 'PUBLISHED'
+      };
+      await onSubmit(finalForm);
+
+      // Clean up the draft now that it's published
+      if (draftId) {
+        const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+        if (savedDraftsRaw) {
+          try {
+            const savedDrafts = JSON.parse(savedDraftsRaw);
+            const filtered = savedDrafts.filter((d: any) => d.id !== draftId);
+            localStorage.setItem('stay_ease_property_drafts', JSON.stringify(filtered));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      localStorage.removeItem('stay_ease_active_draft_id');
+      if (onSaveDraft) {
+        onSaveDraft();
+      }
+
       onClose();
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to submit stay parameters');
@@ -280,6 +409,23 @@ export function PropertyWizardModal({
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Draft Auto-save status indicator */}
+                {!editingProperty && saveStatus !== 'idle' && (
+                  <div className="text-[11px] font-bold flex items-center gap-1">
+                    {saveStatus === 'saving' ? (
+                      <span className="text-amber-600 animate-pulse flex items-center gap-1 mr-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                        Saving...
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 flex items-center gap-1 mr-2">
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        ✓ Draft Saved
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <button 
                   onClick={handleCloseAttempt} 
                   className="p-1.5 hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full cursor-pointer text-slate-400 shrink-0 transition-colors"
@@ -558,21 +704,72 @@ export function PropertyWizardModal({
         </div>
       )}
 
-      {/* Confirmation of Close card */}
+      {/* Exit Confirmation Dialog */}
       <AnimatePresence>
         {showConfirmClose && (
-          <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-indigo-950/70 backdrop-blur-xs select-none">
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 border border-slate-100 shadow-xl">
+          <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none">
+            <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-slate-100 shadow-2xl space-y-4">
               <div className="text-left space-y-2">
-                <div className="p-2 bg-amber-55 text-amber-700 rounded-xl w-fit border border-amber-100">
-                  <AlertTriangle className="w-5 h-5" />
+                <div className="p-3 bg-amber-50 text-amber-650 rounded-2xl w-fit border border-amber-100">
+                  <AlertTriangle className="w-6 h-6 text-amber-600" />
                 </div>
-                <h4 className="font-extrabold text-indigo-950 font-display text-sm">{language === 'en' ? 'Discard Unsaved Changes?' : 'Batalkan Perubahan?'}</h4>
-                <p className="text-xs text-slate-500 leading-relaxed">{language === 'en' ? 'You will lose all inputted stays parameters.' : 'Data properti yang telah diisi akan hilang.'}</p>
+                <h4 className="font-extrabold text-slate-900 font-display text-base">
+                  {language === 'en' ? 'Exit Property Registration?' : 'Keluar dari Pendaftaran Properti?'}
+                </h4>
+                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  {language === 'en' 
+                    ? 'Your property has not been published yet. Choose what you want to do.' 
+                    : 'Properti Anda belum dipublikasikan. Pilih tindakan yang ingin Anda lakukan.'}
+                </p>
               </div>
-              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-slate-50">
-                <button onClick={() => setShowConfirmClose(false)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 cursor-pointer">{language === 'en' ? 'Keep Editing' : 'Batal'}</button>
-                <button onClick={() => { setShowConfirmClose(false); onClose(); }} className="px-3 py-1.5 bg-rose-650 hover:bg-rose-700 text-white rounded-lg text-xs font-bold cursor-pointer">{language === 'en' ? 'Discard' : 'Buang'}</button>
+              
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
+                {/* Save as Draft (Primary Action) */}
+                <button 
+                  onClick={() => {
+                    saveDraftHelper(true, currentStep, form);
+                    setShowConfirmClose(false);
+                    onClose();
+                    if (onSaveDraft) onSaveDraft();
+                  }} 
+                  className="w-full py-2.5 bg-indigo-950 hover:bg-slate-900 text-white rounded-xl text-xs font-black shadow-md cursor-pointer transition-colors"
+                >
+                  {language === 'en' ? 'Save as Draft' : 'Simpan sebagai Draf'}
+                </button>
+                
+                {/* Continue Editing (Secondary Action) */}
+                <button 
+                  onClick={() => setShowConfirmClose(false)} 
+                  className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  {language === 'en' ? 'Continue Editing' : 'Lanjutkan Mengisi'}
+                </button>
+
+                {/* Discard Draft (Danger Action) */}
+                <button 
+                  onClick={() => {
+                    // Discard
+                    if (draftId) {
+                      const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+                      if (savedDraftsRaw) {
+                        try {
+                          const savedDrafts = JSON.parse(savedDraftsRaw);
+                          const filtered = savedDrafts.filter((d: any) => d.id !== draftId);
+                          localStorage.setItem('stay_ease_property_drafts', JSON.stringify(filtered));
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      }
+                    }
+                    localStorage.removeItem('stay_ease_active_draft_id');
+                    setShowConfirmClose(false);
+                    onClose();
+                    if (onSaveDraft) onSaveDraft();
+                  }} 
+                  className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  {language === 'en' ? 'Discard Draft' : 'Buang Draf'}
+                </button>
               </div>
             </div>
           </div>

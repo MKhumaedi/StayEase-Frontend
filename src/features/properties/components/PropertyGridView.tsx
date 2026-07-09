@@ -3,12 +3,14 @@ import { Property, PropertyCategory } from '../../../types';
 import { PropertyCard } from './PropertyCard';
 
 interface PropertyGridViewProps {
-  properties: Property[];
+  properties: any[];
   categories: PropertyCategory[];
-  onView: (p: Property) => void;
-  onEdit: (p: Property) => void;
-  onDelete: (p: Property) => void;
+  onView: (p: any) => void;
+  onEdit: (p: any) => void;
+  onDelete: (p: any) => void;
   onToggleStatus: (id: string, currentStatus: string) => void;
+  onDeleteDraft?: (id: string) => void;
+  onContinueDraft?: (draft: any) => void;
 }
 
 export function PropertyGridView({
@@ -17,7 +19,9 @@ export function PropertyGridView({
   onView,
   onEdit,
   onDelete,
-  onToggleStatus
+  onToggleStatus,
+  onDeleteDraft,
+  onContinueDraft
 }: PropertyGridViewProps) {
   return (
     <div 
@@ -35,6 +39,8 @@ export function PropertyGridView({
               onEdit={onEdit}
               onDelete={onDelete}
               onToggleStatus={onToggleStatus}
+              onDeleteDraft={onDeleteDraft}
+              onContinueDraft={onContinueDraft}
             />
           </div>
         );
