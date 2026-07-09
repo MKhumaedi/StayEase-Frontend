@@ -381,7 +381,7 @@ export function PropertyWizardModal({
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
-            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-[920px] md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-[1440px] xl:max-w-[1520px] md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300"
+            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-230 md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-360 xl:max-w-380 md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300"
           >
             {/* Modal Master Header (Enterprise Status Style) */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
@@ -531,7 +531,7 @@ export function PropertyWizardModal({
 
                   {/* Thumbnail display card */}
                   <div className="bg-white border border-slate-150 rounded-2xl p-3 shadow-xs space-y-3 shrink-0">
-                    <div className="aspect-[4/3] rounded-xl bg-slate-100 overflow-hidden relative border border-slate-50">
+                    <div className="aspect-4/3 rounded-xl bg-slate-100 overflow-hidden relative border border-slate-50">
                       {form.imageUrls && form.imageUrls.length > 0 ? (
                         <img 
                           src={form.imageUrls[form.coverImageIndex || 0] || form.imageUrls[0]} 

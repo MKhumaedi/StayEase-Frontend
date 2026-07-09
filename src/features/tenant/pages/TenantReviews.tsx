@@ -302,7 +302,7 @@ export default function TenantReviews() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row lg:flex-wrap items-center gap-3">
               {/* Property Dropdown */}
-              <div className="flex flex-col flex-1 min-w-[180px]">
+              <div className="flex flex-col flex-1 min-w-35">
                 <label className="text-[10px] font-extrabold uppercase text-slate-400 mb-1 flex items-center gap-1 select-none">
                   <Building className="w-3 h-3" /> Property
                 </label>
@@ -320,7 +320,7 @@ export default function TenantReviews() {
               </div>
 
               {/* Rating Dropdown */}
-              <div className="flex flex-col flex-1 min-w-[140px]">
+              <div className="flex flex-col flex-1 min-w-35">
                 <label className="text-[10px] font-extrabold uppercase text-slate-400 mb-1 flex items-center gap-1 select-none">
                   <Star className="w-3 h-3 text-amber-500 fill-current" /> Rating
                 </label>
@@ -337,7 +337,7 @@ export default function TenantReviews() {
               </div>
 
               {/* Reply Status Dropdown */}
-              <div className="flex flex-col flex-1 min-w-[140px]">
+              <div className="flex flex-col flex-1 min-w-35">
                 <label className="text-[10px] font-extrabold uppercase text-slate-400 mb-1 flex items-center gap-1 select-none">
                   <MessageSquare className="w-3 h-3 text-indigo-500" /> Reply Status
                 </label>
@@ -354,7 +354,7 @@ export default function TenantReviews() {
               </div>
 
               {/* Date Filter Dropdown */}
-              <div className="flex flex-col flex-1 min-w-[140px]">
+              <div className="flex flex-col flex-1 min-w-35">
                 <label className="text-[10px] font-extrabold uppercase text-slate-400 mb-1 flex items-center gap-1 select-none">
                   <Calendar className="w-3 h-3 text-emerald-500" /> Date Period
                 </label>
@@ -371,7 +371,7 @@ export default function TenantReviews() {
               </div>
 
               {/* Search Input */}
-              <div className="flex flex-col flex-1 min-w-[200px]">
+              <div className="flex flex-col flex-1 min-w-50">
                 <label className="text-[10px] font-extrabold uppercase text-slate-400 mb-1 flex items-center gap-1 select-none">
                   <Search className="w-3 h-3 text-slate-450" /> Search
                 </label>

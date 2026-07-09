@@ -30,7 +30,7 @@ export function PropertyListView({
     <div id="properties-list-view" className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-xs">
       {/* Desktop Table View */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[700px]">
+        <table className="w-full text-left border-collapse min-w-175">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
               <th className="py-4 px-5">{language === 'en' ? 'Property' : 'Properti'}</th>
@@ -60,7 +60,7 @@ export function PropertyListView({
                           referrerPolicy="no-referrer"
                         />
                       </div>
-                      <div className="min-w-0 max-w-[240px]">
+                      <div className="min-w-0 max-w-60">
                         <h5 className="font-extrabold text-indigo-950 truncate font-display text-sm leading-tight mb-1">{p.name}</h5>
                         <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
                           {cat?.name || (language === 'en' ? 'Stays' : 'Penginapan')}
@@ -70,7 +70,7 @@ export function PropertyListView({
                   </td>
 
                   {/* Location Column */}
-                  <td className="py-4 px-4 text-slate-500 font-semibold max-w-[150px] truncate">
+                  <td className="py-4 px-4 text-slate-500 font-semibold max-w-37.5 truncate">
                     {p.location ? (
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5 text-slate-450 shrink-0" />
@@ -144,7 +144,7 @@ export function PropertyListView({
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
                           p.status === 'ACTIVE' 
                             ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 

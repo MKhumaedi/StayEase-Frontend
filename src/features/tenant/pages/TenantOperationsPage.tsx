@@ -388,7 +388,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
 
             {/* Filter and Search Action Toolbar */}
             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 flex flex-wrap gap-2 items-center text-xs">
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative flex-1 min-w-50">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                   type="text"
@@ -462,7 +462,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                             </h4>
                             <div className="flex items-center gap-1 mt-0.5 text-slate-400">
                               <Building2 className="w-3 h-3 shrink-0" />
-                              <span className="text-[10px] font-semibold truncate max-w-[140px]">{hk.propertyName}</span>
+                              <span className="text-[10px] font-semibold truncate max-w-35">{hk.propertyName}</span>
                             </div>
                           </div>
                           
@@ -523,7 +523,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                                 readOnly
                                 className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer" 
                               />
-                              <span className={`break-words ${item.done ? 'line-through text-slate-400 font-normal' : ''}`}>{item.text}</span>
+                              <span className={`wrap-break-words ${item.done ? 'line-through text-slate-400 font-normal' : ''}`}>{item.text}</span>
                             </label>
                           ))}
                         </div>
@@ -546,7 +546,7 @@ export default function TenantOperationsPage({ onNavigate, initialTab }: Operati
                                 key={btn.key}
                                 onClick={() => handleUpdateHKStatus(hk.id, btn.key as any)}
                                 title={btn.key}
-                                className={`flex-1 text-[9px] font-black uppercase tracking-wider py-1 px-1 rounded-md transition-all border-0 cursor-pointer min-w-[36px] ${
+                                className={`flex-1 text-[9px] font-black uppercase tracking-wider py-1 px-1 rounded-md transition-all border-0 cursor-pointer min-w-9 ${
                                   isCurrent 
                                     ? 'bg-white text-indigo-950 shadow-3xs font-black ring-1 ring-black/5' 
                                     : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
