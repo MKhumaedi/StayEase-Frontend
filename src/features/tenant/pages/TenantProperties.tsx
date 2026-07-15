@@ -117,7 +117,16 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
     setShowWizard(true);
   };
 
-  const handleDeleteDraft = (draftId: string) => {
+  const handleDeleteDraft = async (draftId: string) => {
+    try {
+      await fetch(`/api/properties/${draftId}`, {
+        method: 'DELETE',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+    } catch (e) {
+      console.error('Failed to delete draft from server:', e);
+    }
+
     const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
     if (savedDraftsRaw) {
       try {
@@ -145,7 +154,72 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
       } : undefined);
       if (propRes.ok) {
         const propData = await propRes.json();
-        setProperties(propData.data || []);
+        const allProps = propData.data || [];
+        
+        // Filter out drafts from normal properties list
+        const nonDraftProps = allProps.filter((p: any) => p.status !== 'DRAFT');
+        setProperties(nonDraftProps);
+
+        // Map drafts from DB format to wizard form format
+        const dbDraftsMapped = allProps
+          .filter((p: any) => p.status === 'DRAFT')
+          .map((p: any) => {
+            const formRooms = p.rooms ? p.rooms.map((r: any) => {
+              let parsedFloor = { bedCount: 1, bathCount: 1, quantity: 1 };
+              try {
+                if (r.floor && r.floor.trim().startsWith('{')) {
+                  parsedFloor = JSON.parse(r.floor);
+                }
+              } catch (e) {}
+              return {
+                id: r.id,
+                name: r.name,
+                type: r.type,
+                capacity: r.capacity,
+                basePrice: r.basePrice || 500000,
+                description: r.wing || r.description || '',
+                bedCount: parsedFloor.bedCount || 1,
+                bathCount: parsedFloor.bathCount || 1,
+                quantity: parsedFloor.quantity || 1,
+                image: r.image || ''
+              };
+            }) : [];
+
+            return {
+              id: p.id,
+              tenantId: p.tenantId,
+              currentStep: p.currentWizardStep || 1,
+              completionPercentage: p.progressPercentage || 0,
+              draftUpdatedAt: p.updatedAt || new Date().toISOString(),
+              status: 'DRAFT',
+              form: {
+                name: p.name || '',
+                categoryId: p.categoryId || '',
+                description: p.description || '',
+                fullAddress: p.address || p.location || '',
+                city: p.city || '',
+                province: p.province || '',
+                latitude: p.latitude || -8.7209,
+                longitude: p.longitude || 115.1691,
+                imageUrls: p.imageUrls || [],
+                coverImageIndex: 0,
+                bedrooms: p.beds || 1,
+                bathrooms: p.baths || 1,
+                guests: p.guests || 2,
+                areaSqm: p.sqft || 35,
+                basePrice: p.basePrice || 500000,
+                cleaningFee: p.cleaningFee || 0,
+                serviceFee: p.serviceFee || 0,
+                securityDeposit: p.securityDeposit || 0,
+                status: 'DRAFT',
+                rooms: formRooms,
+                amenities: p.amenities || []
+              }
+            };
+          });
+
+        setDrafts(dbDraftsMapped);
+        localStorage.setItem('stay_ease_property_drafts', JSON.stringify(dbDraftsMapped));
       }
       const catRes = await fetch('/api/categories');
       if (catRes.ok) {
@@ -163,7 +237,7 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
 
   useEffect(() => {
     retrieveData();
-  }, []);
+  }, [token]);
 
   // Quick Action: Toggle Stays Status (Active/Draft)
   const handleToggleStatus = async (id: string, currentStatus: string) => {

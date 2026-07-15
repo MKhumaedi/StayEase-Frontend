@@ -44,7 +44,10 @@ function drawPropertyText(doc: jsPDF, booking: InvoiceBooking, imgData: string |
   drawText(doc, booking.property.name, 129, y + 1, 8, true, [15, 23, 42]);
   drawText(doc, booking.room?.name || 'Standard Suite Package', 129, y + 5, 8, false, [100, 116, 139]);
   drawText(doc, booking.property.address || booking.property.location, 129, y + 9, 7, false, [100, 116, 139]);
-  drawText(doc, `Host: ${booking.property.tenant?.name || 'StayEase Landlord'}`, 129, y + 13, 7, false, [67, 56, 202]);
+  
+  const hostName = booking.property.tenant?.name || 'StayEase Landlord';
+  drawText(doc, `Managed by ${hostName}`, 129, y + 13, 7, false, [100, 116, 139]);
+  drawText(doc, 'Verified Host', 129, y + 17, 7, true, [16, 185, 129]);
 }
 
 function drawCustomerAndProperty(doc: jsPDF, booking: InvoiceBooking, imgData: string | null): void {
@@ -61,9 +64,87 @@ function drawColumn(doc: jsPDF, label: string, val: string, x: number, y: number
   drawText(doc, val, x, y + 13, 9, true, [15, 23, 42]);
 }
 
+interface ParsedProof {
+  id: string;
+  url: string;
+  status: string;
+  method: string;
+  updatedAt: string;
+  originalName?: string;
+}
+
+function parsePaymentProof(proofUrl: string | undefined): ParsedProof | null {
+  if (!proofUrl) return null;
+  const trimmed = proofUrl.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        id: parsed.id || parsed.webpName || '',
+        url: parsed.url || '',
+        status: parsed.status || 'PAID',
+        method: parsed.method || (parsed.url?.includes('midtrans') ? 'midtrans' : 'manual'),
+        updatedAt: parsed.updatedAt || parsed.createdAt || '',
+        originalName: parsed.originalName
+      };
+    } catch (e) {
+      console.error('Failed to parse payment proof JSON:', e);
+    }
+  }
+  
+  // fallback for plain strings
+  const isMidtr = trimmed.startsWith('midtrans://') || trimmed.includes('midtrans');
+  return {
+    id: isMidtr ? trimmed.replace('midtrans://', '') : 'manual-proof',
+    url: trimmed,
+    status: 'PAID',
+    method: isMidtr ? 'midtrans' : 'manual',
+    updatedAt: ''
+  };
+}
+
+function getHumanReadablePaymentMethod(method: string | undefined): string {
+  if (!method) return 'Bank Transfer';
+  const m = method.toLowerCase();
+  if (m === 'midtrans') return 'Midtrans Payment Gateway';
+  if (m === 'manual' || m === 'bank_transfer' || m === 'bank transfer') return 'Bank Transfer';
+  if (m === 'virtual_account' || m === 'va' || m === 'virtual account') return 'Virtual Account';
+  if (m === 'qris') return 'QRIS';
+  if (m === 'credit_card' || m === 'credit card') return 'Credit Card';
+  if (m === 'gopay') return 'GoPay';
+  
+  return method.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+function formatSettlementTime(dateInput: string | Date | undefined): string {
+  if (!dateInput) return 'Verified';
+  try {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(date.getTime())) return 'Verified';
+    
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    const pad = (num: number) => String(num).padStart(2, '0');
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    
+    return `${day} ${month} ${year} • ${hours}:${minutes} WIB`;
+  } catch (err) {
+    return 'Verified';
+  }
+}
+
+function formatGuests(guestCount: number | undefined | null): string {
+  const count = Number(guestCount) || 1;
+  return count === 1 ? '1 Guest' : `${count} Guests`;
+}
+
 function drawMethodColumn(doc: jsPDF, booking: InvoiceBooking, x: number, y: number): void {
-  const isMidtr = booking.paymentProof?.proofUrl?.startsWith('midtrans://') || booking.paymentProof?.proofUrl?.includes('midtrans');
-  const method = isMidtr ? 'Midtrans' : 'Manual Transfer';
+  const parsedProof = parsePaymentProof(booking.paymentProof?.proofUrl);
+  const method = getHumanReadablePaymentMethod(parsedProof?.method);
   drawText(doc, 'Payment Method', x, y + 6, 7, true, [100, 116, 139]);
   drawText(doc, method, x, y + 13, 8, true, [67, 56, 202]);
 }
@@ -77,7 +158,7 @@ function drawReservationDetails(doc: jsPDF, booking: InvoiceBooking): void {
   drawColumn(doc, 'Check-In', booking.startDate, 20, y);
   drawColumn(doc, 'Check-Out', booking.endDate, 56, y);
   drawColumn(doc, 'Nights', `${booking.nights} Night(s)`, 92, y);
-  drawColumn(doc, 'Guests', `${booking.guestCount} Guest(s)`, 124, y);
+  drawColumn(doc, 'Guests', formatGuests(booking.guestCount), 124, y);
   drawMethodColumn(doc, booking, 150, y);
 }
 
@@ -152,53 +233,86 @@ function drawPaymentSummary(doc: jsPDF, booking: InvoiceBooking): void {
   drawTotalsBlock(doc, sum, finalY + 9);
 }
 
-function drawPaymentStatusBadge(doc: jsPDF, booking: InvoiceBooking, y: number): void {
-  const status = booking.status;
-  let text = 'PENDING';
-  let bg = [254, 243, 199];
-  let fg = [180, 83, 9];
-  if (status === 'CONFIRMED' || status === 'COMPLETED') {
-    text = 'PAID'; bg = [209, 250, 229]; fg = [16, 185, 129];
-  } else if (status === 'CANCELLED' || status === 'AUTO_EXPIRED') {
-    text = 'CANCELLED'; bg = [254, 226, 226]; fg = [239, 68, 68];
+function drawKeyValuePair(doc: jsPDF, label: string, value: string, x: number, y: number, isBadge = false, badgeColors?: { bg: number[], fg: number[] }): void {
+  drawText(doc, label, x, y, 8, true, [100, 116, 139]);
+  
+  if (isBadge && badgeColors) {
+    const badgeW = 22;
+    const badgeH = 5;
+    doc.setFillColor(badgeColors.bg[0], badgeColors.bg[1], badgeColors.bg[2]);
+    doc.rect(x + 40, y - 3.5, badgeW, badgeH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(badgeColors.fg[0], badgeColors.fg[1], badgeColors.fg[2]);
+    doc.text(value, x + 40 + (badgeW / 2), y - 3.5 + 3.5, { align: 'center' });
+  } else {
+    drawText(doc, value, x + 40, y, 8, false, [15, 23, 42]);
   }
-  doc.setFillColor(bg[0], bg[1], bg[2]);
-  doc.rect(15, y, 32, 7, 'F');
-  drawText(doc, text, 18, y + 5, 8, true, fg);
-}
-
-function drawMidtransDetails(doc: jsPDF, booking: InvoiceBooking, y: number): void {
-  const proofUrl = booking.paymentProof?.proofUrl || '';
-  const txId = proofUrl.replace('midtrans://', '') || 'MIDTRANS-TX-' + booking.bookingCode;
-  drawText(doc, 'Gateway: Midtrans Systems', 15, y, 7.5, false, [100, 116, 139]);
-  drawText(doc, `Order ID: ${booking.bookingCode}`, 15, y + 4, 7.5, false, [100, 116, 139]);
-  drawText(doc, `Transaction ID: ${txId}`, 15, y + 8, 7.5, false, [15, 23, 42]);
-  const setTime = booking.paymentProof ? new Date(booking.paymentProof.createdAt).toLocaleString('id-ID') : 'Verified';
-  drawText(doc, `Settlement Time: ${setTime}`, 15, y + 12, 7.5, false, [100, 116, 139]);
-}
-
-function drawManualDetails(doc: jsPDF, booking: InvoiceBooking, y: number): void {
-  const transDate = booking.paymentProof ? new Date(booking.paymentProof.createdAt).toLocaleDateString('id-ID') : 'N/A';
-  const verDate = new Date(booking.updatedAt).toLocaleDateString('id-ID');
-  drawText(doc, 'Pathway: Manual Bank Transfer Inquiry', 15, y, 7.5, false, [100, 116, 139]);
-  drawText(doc, `Transfer Slip Uploaded: ${transDate}`, 15, y + 4, 7.5, false, [100, 116, 139]);
-  drawText(doc, `Verification Stamp: ${verDate}`, 15, y + 8, 7.5, false, [15, 23, 42]);
-  drawText(doc, 'Ledger Auditing Status: Approved & Reconciled', 15, y + 12, 7.5, false, [16, 185, 129]);
 }
 
 function drawGatewayDetails(doc: jsPDF, booking: InvoiceBooking, y: number): void {
-  const isMidtr = booking.paymentProof?.proofUrl?.startsWith('midtrans://') || booking.paymentProof?.proofUrl?.includes('midtrans');
-  drawText(doc, 'TRANSACTION PROCESSOR DETAILS', 15, y, 8, true, [67, 56, 202]);
-  if (isMidtr) {
-    drawMidtransDetails(doc, booking, y + 5);
-  } else {
-    drawManualDetails(doc, booking, y + 5);
+  drawText(doc, 'PAYMENT & TRANSACTION DETAILS', 15, y, 9, true, [67, 56, 202]);
+
+  const parsedProof = parsePaymentProof(booking.paymentProof?.proofUrl);
+
+  const paymentGateway = parsedProof?.method === 'midtrans' 
+    ? 'Midtrans Payment Gateway' 
+    : 'StayEase Bank Transfer Audit';
+
+  let rawTxId = parsedProof?.id || 'N/A';
+  if (rawTxId.startsWith('midtrans://')) {
+    rawTxId = rawTxId.replace('midtrans://', '');
   }
+  const transactionId = rawTxId.toUpperCase();
+
+  const referenceNumber = booking.paymentProof?.id || parsedProof?.id || 'N/A';
+
+  const paymentMethod = getHumanReadablePaymentMethod(parsedProof?.method);
+
+  const status = booking.status;
+  let paymentStatus = 'PENDING';
+  let badgeColors = { bg: [254, 243, 199], fg: [180, 83, 9] };
+  
+  if (status === 'CONFIRMED' || status === 'COMPLETED') {
+    paymentStatus = 'PAID';
+    badgeColors = { bg: [209, 250, 229], fg: [16, 185, 129] };
+  } else if (status === 'CANCELLED' || status === 'AUTO_EXPIRED') {
+    paymentStatus = 'CANCELLED';
+    badgeColors = { bg: [254, 226, 226], fg: [239, 68, 68] };
+  } else if (status === 'FAILED') {
+    paymentStatus = 'FAILED';
+    badgeColors = { bg: [254, 226, 226], fg: [239, 68, 68] };
+  } else if (status === 'REFUNDED') {
+    paymentStatus = 'REFUNDED';
+    badgeColors = { bg: [219, 234, 254], fg: [37, 99, 235] };
+  }
+
+  const settlementTime = formatSettlementTime(booking.paymentProof?.createdAt || booking.updatedAt);
+
+  let rowY = y + 5;
+  drawKeyValuePair(doc, 'Payment Gateway', paymentGateway, 15, rowY);
+  rowY += 4.5;
+  drawKeyValuePair(doc, 'Transaction ID', transactionId, 15, rowY);
+  rowY += 4.5;
+  drawKeyValuePair(doc, 'Reference Number', referenceNumber, 15, rowY);
+  rowY += 4.5;
+  drawKeyValuePair(doc, 'Payment Method', paymentMethod, 15, rowY);
+  rowY += 4.5;
+  drawKeyValuePair(doc, 'Payment Status', paymentStatus, 15, rowY, true, badgeColors);
+  rowY += 4.5;
+  drawKeyValuePair(doc, 'Settlement Time', settlementTime, 15, rowY);
 }
 
 async function drawQrCodeOnDocument(doc: jsPDF, booking: InvoiceBooking, y: number): Promise<void> {
-  const proofUrl = booking.paymentProof?.proofUrl || '';
-  const txId = proofUrl.startsWith('midtrans://') ? proofUrl.replace('midtrans://', '') : 'MANUAL-TRANSFER';
+  const parsedProof = parsePaymentProof(booking.paymentProof?.proofUrl);
+  let txId = 'MANUAL-TRANSFER';
+  if (parsedProof) {
+    let rawId = parsedProof.id;
+    if (rawId.startsWith('midtrans://')) {
+      rawId = rawId.replace('midtrans://', '');
+    }
+    txId = rawId || 'MANUAL-TRANSFER';
+  }
   const qrContent = `Booking ID: ${booking.id}\nBooking Code: ${booking.bookingCode}\nTransaction ID: ${txId}`;
   try {
     const qrDataUrl = await QRCode.toDataURL(qrContent, { margin: 1, width: 120 });
@@ -242,8 +356,7 @@ export async function generateInvoicePdf(booking: InvoiceBooking): Promise<void>
   drawCustomerAndProperty(doc, booking, imgData);
   drawReservationDetails(doc, booking);
   drawPaymentSummary(doc, booking);
-  drawPaymentStatusBadge(doc, booking, 145);
-  drawGatewayDetails(doc, booking, 158);
+  drawGatewayDetails(doc, booking, 164);
   await drawFooterAndQr(doc, booking);
   doc.save(`STAYEASE-INVOICE-${booking.bookingCode}.pdf`);
 }

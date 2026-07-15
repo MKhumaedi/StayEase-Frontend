@@ -202,6 +202,56 @@ export function PropertyWizardModal({
 
     localStorage.setItem('stay_ease_property_drafts', JSON.stringify(savedDrafts));
     
+    // Save to backend database
+    const payload = {
+      id: draftId,
+      name: customForm.name || 'Untitled Property',
+      categoryId: customForm.categoryId || null,
+      description: customForm.description || '',
+      city: customForm.city || '',
+      province: customForm.province || '',
+      address: customForm.fullAddress || '',
+      fullAddress: customForm.fullAddress || '',
+      latitude: customForm.latitude,
+      longitude: customForm.longitude,
+      beds: customForm.bedrooms,
+      baths: customForm.bathrooms,
+      sqft: customForm.areaSqm,
+      basePrice: customForm.basePrice,
+      imageUrls: customForm.imageUrls,
+      amenities: customForm.amenities,
+      cleaningFee: customForm.cleaningFee,
+      serviceFee: customForm.serviceFee,
+      securityDeposit: customForm.securityDeposit,
+      guests: customForm.guests,
+      status: 'DRAFT',
+      currentWizardStep: currentStepNum,
+      progressPercentage: completionPercent,
+      rooms: customForm.rooms
+    };
+
+    fetch('/api/properties', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(async (res) => {
+      if (!res.ok) {
+        console.error('Failed to save draft to server:', await res.text());
+      } else {
+        console.log('Draft saved to server successfully');
+        if (onSaveDraft) {
+          onSaveDraft();
+        }
+      }
+    })
+    .catch((err) => {
+      console.error('Network error saving draft to server:', err);
+    });
+
     if (isManual) {
       localStorage.removeItem('stay_ease_active_draft_id');
     }
@@ -314,6 +364,13 @@ export function PropertyWizardModal({
 
       // Clean up the draft now that it's published
       if (draftId) {
+        // Delete from backend database
+        fetch(`/api/properties/${draftId}`, {
+          method: 'DELETE',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
+        .catch(e => console.error('Failed to clean up published draft on backend:', e));
+
         const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
         if (savedDraftsRaw) {
           try {
@@ -381,7 +438,7 @@ export function PropertyWizardModal({
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
-            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-230 md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-360 xl:max-w-380 md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300"
+            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-[920px] md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-[1440px] xl:max-w-[1520px] md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300"
           >
             {/* Modal Master Header (Enterprise Status Style) */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
@@ -531,7 +588,7 @@ export function PropertyWizardModal({
 
                   {/* Thumbnail display card */}
                   <div className="bg-white border border-slate-150 rounded-2xl p-3 shadow-xs space-y-3 shrink-0">
-                    <div className="aspect-4/3 rounded-xl bg-slate-100 overflow-hidden relative border border-slate-50">
+                    <div className="aspect-[4/3] rounded-xl bg-slate-100 overflow-hidden relative border border-slate-50">
                       {form.imageUrls && form.imageUrls.length > 0 ? (
                         <img 
                           src={form.imageUrls[form.coverImageIndex || 0] || form.imageUrls[0]} 
@@ -750,6 +807,13 @@ export function PropertyWizardModal({
                   onClick={() => {
                     // Discard
                     if (draftId) {
+                      // Delete from backend database
+                      fetch(`/api/properties/${draftId}`, {
+                        method: 'DELETE',
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                      })
+                      .catch(e => console.error('Failed to discard draft from backend:', e));
+
                       const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
                       if (savedDraftsRaw) {
                         try {
