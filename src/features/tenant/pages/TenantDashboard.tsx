@@ -29,7 +29,8 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
   const { language, formatCurrencyIDR } = useLanguage();
   const [reports, setReports] = useState<any>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'analytics' | 'revenue' | 'occupancy' | 'checkin' | 'checkout'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'analytics'>('overview');
+  const [reportSegment, setReportSegment] = useState<'revenue' | 'bookings' | 'occupancy'>('revenue');
 
   const en = language === 'en';
 
@@ -229,7 +230,8 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
       score: `${reports.occupancyRate ?? 0}%`, 
       color: 'text-teal-700 bg-teal-50 border-teal-100/60', 
       icon: Percent,
-      tabId: 'occupancy' as const,
+      tabId: 'analytics' as const,
+      segment: 'occupancy' as const,
       desc: en ? 'Overall host health ratio' : 'Rasio kesehatan host'
     }
   ];
@@ -257,17 +259,18 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
       <div className="flex bg-slate-100 p-1 rounded-2xl w-full lg:w-fit self-center border border-slate-200/50 overflow-x-auto text-[11px] font-bold">
         {[
           { id: 'overview', name: en ? 'Overview' : 'Ikhtisar', icon: LayoutDashboard },
-          { id: 'analytics', name: en ? 'Analytics' : 'Analisis Tren', icon: CalendarRange },
-          { id: 'revenue', name: en ? 'Revenue' : 'Pendapatan', icon: DollarSign },
-          { id: 'occupancy', name: en ? 'Occupancy' : 'Tingkat Okupansi', icon: Percent },
-          { id: 'checkin', name: en ? "Today's Check-In" : 'Check-In Hari Ini', icon: UserCheck },
-          { id: 'checkout', name: en ? "Today's Check-Out" : 'Check-Out Hari Ini', icon: LogOut }
+          { id: 'analytics', name: en ? 'Analytics' : 'Analisis Tren', icon: CalendarRange }
         ].map(tab => {
           const TabIcon = tab.icon;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as any)}
+              onClick={() => {
+                if (tab.id === 'analytics') {
+                  setReportSegment('revenue');
+                }
+                setActiveSubTab(tab.id as any);
+              }}
               className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 border-0 ${
                 activeSubTab === tab.id 
                   ? 'bg-indigo-900 text-white shadow-xs' 
@@ -352,7 +355,16 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                   return (
                     <button 
                       key={i} 
-                      onClick={() => setActiveSubTab(c.tabId)}
+                      onClick={() => {
+                        if ('segment' in c && c.segment) {
+                          setReportSegment(c.segment);
+                        }
+                        if (c.tabId === 'checkin' || c.tabId === 'checkout') {
+                          handleEmbeddedNavigate(c.tabId === 'checkin' ? '/check-in' : '/check-out');
+                        } else {
+                          setActiveSubTab(c.tabId as any);
+                        }
+                      }}
                       className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:shadow-xs flex flex-col justify-between h-full min-h-[145px] text-left transition-all duration-300 cursor-pointer outline-hidden relative group"
                     >
                       <div>
@@ -558,27 +570,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
 
         {/* ANALYTICS TAB */}
         {activeSubTab === 'analytics' && (
-          <TenantReports initialSegment="bookings" />
-        )}
-
-        {/* REVENUE TAB */}
-        {activeSubTab === 'revenue' && (
-          <TenantReports initialSegment="revenue" />
-        )}
-
-        {/* OCCUPANCY TAB */}
-        {activeSubTab === 'occupancy' && (
-          <TenantReports initialSegment="occupancy" />
-        )}
-
-        {/* TODAY'S CHECK-IN TAB (Real QR/Webcam scanner integration) */}
-        {activeSubTab === 'checkin' && (
-          <TodayCheckInPage onNavigate={handleEmbeddedNavigate} />
-        )}
-
-        {/* TODAY'S CHECK-OUT TAB */}
-        {activeSubTab === 'checkout' && (
-          <TodayCheckOutPage onNavigate={handleEmbeddedNavigate} />
+          <TenantReports initialSegment={reportSegment} />
         )}
 
       </div>

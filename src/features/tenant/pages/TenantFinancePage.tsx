@@ -15,7 +15,8 @@ import {
   TrendingUp, 
   DownloadCloud, 
   FileText,
-  BadgeAlert
+  BadgeAlert,
+  X
 } from 'lucide-react';
 import { parseProof } from '../../tenant-payments/pages/TenantPaymentsPage';
 
@@ -46,6 +47,94 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
   const [isSettling, setIsSettling] = useState(false);
   const [settledSuccess, setSettledSuccess] = useState(false);
 
+  // Real withdrawals states
+  const [tenantBalance, setTenantBalance] = useState<number>(0);
+  const [bankDetails, setBankDetails] = useState({ bankName: 'BCA', accountNumber: '8291-0391-77', accountName: user?.name || '' });
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawNotes, setWithdrawNotes] = useState('');
+  const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
+
+  const fetchTenantWithdrawalData = async () => {
+    try {
+      const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      
+      // 1. Fetch balance & bank info
+      const balRes = await fetch('/api/withdrawals/tenant/balance', { headers: authHeader });
+      if (balRes.ok) {
+        const balData = await balRes.json();
+        if (balData.success) {
+          setTenantBalance(balData.credits);
+          if (balData.bankDetails && balData.bankDetails.bankName) {
+            setBankDetails(balData.bankDetails);
+          }
+        }
+      }
+
+      // 2. Fetch withdrawal requests history
+      const listRes = await fetch('/api/withdrawals/tenant/list', { headers: authHeader });
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        if (listData.success) {
+          setWithdrawals(listData.items || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching tenant withdrawal data:', err);
+    }
+  };
+
+  const handleRequestWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(withdrawAmount);
+    if (!amount || isNaN(amount) || amount <= 0) {
+      setError(en ? 'Please enter a valid amount' : 'Jumlah penarikan tidak valid');
+      return;
+    }
+    if (amount > tenantBalance) {
+      setError(en ? 'Amount exceeds available balance' : 'Jumlah penarikan melebihi saldo tersedia');
+      return;
+    }
+
+    setIsSubmittingWithdraw(true);
+    try {
+      const authHeader: HeadersInit = token ? { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      } : {};
+      const res = await fetch('/api/withdrawals/tenant/request', {
+        method: 'POST',
+        headers: authHeader,
+        body: JSON.stringify({
+          amount,
+          fee: 5000, // flat Rp 5,000 interbank fee
+          bankName: bankDetails.bankName,
+          accountName: bankDetails.accountName,
+          accountNumber: bankDetails.accountNumber,
+          notes: withdrawNotes
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to request withdrawal');
+      }
+
+      // Success
+      setSettledSuccess(true);
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      setWithdrawNotes('');
+      await fetchTenantWithdrawalData();
+      setTimeout(() => setSettledSuccess(false), 5000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmittingWithdraw(false);
+    }
+  };
+
   const fetchPayments = () => {
     setLoading(true);
     const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -60,6 +149,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
   useEffect(() => {
     fetchPayments();
+    fetchTenantWithdrawalData();
     const interval = setInterval(() => {
       const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
       fetch('/api/tenant/payments', { headers: authHeader })
@@ -68,6 +158,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
           setBookings(Array.isArray(data) ? data : []);
         })
         .catch(() => {});
+      fetchTenantWithdrawalData();
     }, 5000);
     return () => clearInterval(interval);
   }, [token]);
@@ -432,8 +523,8 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
               </h3>
               <p className="text-[11px] text-slate-500 leading-relaxed max-w-2xl">
                 {en 
-                  ? 'All funds received from platform bookings are settled to your listed corporate bank account daily. Payout standard cycle runs every morning at 08:00 AM UTC.' 
-                  : 'Seluruh dana yang masuk dari reservasi tamu akan otomatis dicairkan ke rekening bank terdaftar Anda secara instan atau harian pada pukul 08:00 WIB.'}
+                  ? 'All funds received from platform bookings are settled to your listed bank account. Request withdrawal below to disburse your current credits.' 
+                  : 'Seluruh dana yang masuk dari reservasi tamu yang telah selesai dapat ditarik langsung ke rekening bank terdaftar Anda melalui pengajuan penarikan dana di bawah.'}
               </p>
             </div>
 
@@ -446,15 +537,15 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Bank Institution</span>
-                    <strong className="text-slate-800 text-sm">PT Bank Central Asia Tbk. (BCA)</strong>
+                    <strong className="text-slate-800 text-sm">{bankDetails.bankName || 'BCA'}</strong>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Account Number</span>
-                    <strong className="text-slate-800 text-sm font-mono tracking-wider">8291-0391-77</strong>
+                    <strong className="text-slate-800 text-sm font-mono tracking-wider">{bankDetails.accountNumber || '8291-0391-77'}</strong>
                   </div>
                   <div className="col-span-2">
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Account Holder Name</span>
-                    <strong className="text-slate-800 text-sm block uppercase mt-0.5">{user?.name ?? 'DEFAULT PARTNER HOST'}</strong>
+                    <strong className="text-slate-800 text-sm block uppercase mt-0.5">{bankDetails.accountName || user?.name}</strong>
                   </div>
                 </div>
 
@@ -469,7 +560,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                   </div>
                   <div className="flex justify-between items-center text-xs border-t border-slate-200/50 pt-2.5">
                     <span className="font-bold text-slate-800 text-sm">{en ? 'Net Settled Account funds' : 'Net Dana Dapat Dicairkan'}</span>
-                    <span className="font-black text-emerald-650 text-base font-display">{formatCurrencyIDR(netSettled)}</span>
+                    <span className="font-black text-indigo-900 text-base font-display">{formatCurrencyIDR(netSettled)}</span>
                   </div>
                 </div>
               </div>
@@ -479,39 +570,101 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
                 
                 <div>
-                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-300 block">{en ? 'SaaS Immediate Transfer' : 'Pencairan Instan Real-time'}</span>
-                  <div className="text-2xl font-black font-display text-white mt-1.5">{formatCurrencyIDR(netSettled)}</div>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-300 block">{en ? 'Available Credits Balance' : 'Saldo Kredit Tersedia'}</span>
+                  <div className="text-2xl font-black font-display text-white mt-1.5">{formatCurrencyIDR(tenantBalance)}</div>
                   <p className="text-[10px] text-slate-400 leading-relaxed mt-2.5 font-semibold">
                     {en 
-                      ? 'Reconcile ledger accounts and disburse your current earnings instantly to PT Bank Central Asia.' 
-                      : 'Cairkan saldo pendapatan kotor hasil reservasi penginapan Anda langsung ke rekening bank BCA secara instan.'}
+                      ? 'Reconcile ledger accounts and disburse your current earnings instantly to your bank account.' 
+                      : 'Cairkan saldo kredit pendapatan bersih hasil reservasi unit penginapan Anda langsung ke rekening bank terdaftar.'}
                   </p>
                 </div>
 
                 <div className="flex flex-col gap-2 pt-2">
                   <button 
-                    disabled={isSettling || netSettled <= 0}
-                    onClick={triggerSettlement}
-                    className="w-full py-2.5 bg-indigo-505 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/15"
+                    disabled={tenantBalance <= 0}
+                    onClick={() => {
+                      setWithdrawAmount(tenantBalance.toString());
+                      setShowWithdrawModal(true);
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-indigo-600/15"
                   >
-                    {isSettling ? (en ? 'Processing Settlement...' : 'Sedang Memproses...') : (en ? 'Withdraw Funds Now' : 'Tarik Saldo Sekarang')}
+                    {en ? 'Withdraw Balance Now' : 'Tarik Saldo Sekarang'}
                   </button>
                   <span className="text-[9px] text-center text-slate-450 font-normal">
                     {en 
-                      ? 'Withdrawal settled in seconds. BCA networks active 24/7.' 
-                      : 'Dana cair dalam hitungan detik. Transaksi otomatis diproses Bank.'}
+                      ? 'Transfer processed upon admin validation.' 
+                      : 'Proses transfer dana setelah verifikasi admin.'}
                   </span>
                 </div>
               </div>
 
             </div>
 
+            {/* Withdrawal History Section */}
+            <div className="border-t border-slate-100 pt-6 mt-4">
+              <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider mb-3">
+                {en ? 'Withdrawal History' : 'Riwayat Penarikan Dana'}
+              </h4>
+              
+              {withdrawals.length === 0 ? (
+                <div className="py-8 text-center border border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs bg-slate-50/50">
+                  {en ? 'No withdrawal requests found.' : 'Belum ada riwayat penarikan dana.'}
+                </div>
+              ) : (
+                <div className="overflow-x-auto bg-white border border-slate-100 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Bank Details</th>
+                        <th className="p-3">Requested Amount</th>
+                        <th className="p-3">Admin Fee</th>
+                        <th className="p-3">Net Amount</th>
+                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3 text-right">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 font-semibold text-slate-650">
+                      {withdrawals.map((w) => (
+                        <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-3 text-slate-500 font-normal">
+                            {new Date(w.requestedAt || w.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="p-3">
+                            <div className="font-bold text-slate-850">{w.bankName}</div>
+                            <span className="text-[10px] text-slate-450 font-mono font-normal">No: {w.accountNumber}</span>
+                          </td>
+                          <td className="p-3 text-slate-800">{formatCurrencyIDR(w.amount)}</td>
+                          <td className="p-3 text-slate-450">{formatCurrencyIDR(w.fee)}</td>
+                          <td className="p-3 text-indigo-750 font-bold">{formatCurrencyIDR(w.netAmount)}</td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase border tracking-wider ${
+                              w.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                              w.status === 'APPROVED' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                              w.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                              w.status === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                              'bg-slate-50 text-slate-650'
+                            }`}>
+                              {w.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono text-[10px] text-slate-500">
+                            {w.referenceNumber || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             {settledSuccess && (
-              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-4 text-emerald-350 flex items-center gap-3 animate-bounce">
-                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
+              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-4 text-emerald-800 flex items-center gap-3 animate-bounce">
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
                 <div className="text-xs font-semibold">
-                  <strong>{en ? 'Disbursement Initiated Successfully!' : 'Pencairan Saldo Berhasil!'}</strong>
-                  <p className="font-normal mt-0.5">{en ? 'Bank BCA is processing PT StayEase Auto-Settlement. Receipt should arrive shortly.' : 'Bank BCA sedang memproses Auto-Settlement dari StayEase. Resi pengiriman akan tiba sebentar lagi.'}</p>
+                  <strong>{en ? 'Withdrawal Requested Successfully!' : 'Permintaan Penarikan Berhasil Diajukan!'}</strong>
+                  <p className="font-normal mt-0.5">{en ? 'Your withdrawal is pending administrator confirmation.' : 'Permintaan pencairan dana Anda sedang menunggu persetujuan dan transfer dari admin.'}</p>
                 </div>
               </div>
             )}
@@ -633,6 +786,155 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
               <button type="button" onClick={() => { setRejectId(null); setReasonInput(''); }} className="px-4 py-2 hover:bg-slate-100 rounded-xl font-bold text-xs text-slate-500 cursor-pointer">Batal</button>
               <button type="submit" className="px-5 py-2 bg-rose-600 hover:bg-rose-750 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">
                 {en ? 'Submit Decline' : 'Tolak Bukti'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Withdrawal Confirmation Dialog Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleRequestWithdrawal} className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl space-y-5">
+            <div className="flex justify-between items-start border-b pb-3">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Withdrawal Confirmation</span>
+                <h3 className="font-bold text-base text-slate-900 mt-0.5">
+                  {en ? 'Confirm Balance Withdrawal' : 'Konfirmasi Penarikan Saldo'}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                className="p-1 text-slate-450 hover:text-slate-800 rounded-lg hover:bg-slate-50 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal fields info */}
+            <div className="space-y-4 text-xs font-semibold text-slate-700">
+              <div className="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 flex justify-between items-center">
+                <span className="text-indigo-900 font-bold">{en ? 'Available Balance' : 'Saldo Tersedia'}:</span>
+                <strong className="text-indigo-950 text-sm font-black">{formatCurrencyIDR(tenantBalance)}</strong>
+              </div>
+
+              {/* Amount input */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">
+                  {en ? 'Withdrawal Amount' : 'Jumlah Penarikan'}
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-xs">Rp</span>
+                  <input
+                    required
+                    type="number"
+                    max={tenantBalance}
+                    min={10000}
+                    value={withdrawAmount}
+                    onChange={e => setWithdrawAmount(e.target.value)}
+                    placeholder="e.g., 100000"
+                    className="w-full pl-8 pr-12 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-extrabold text-slate-850"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawAmount(tenantBalance.toString())}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[10px] font-bold text-indigo-650 hover:text-indigo-800 uppercase"
+                  >
+                    MAX
+                  </button>
+                </div>
+              </div>
+
+              {/* Bank Details configuration */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-3">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">
+                  {en ? 'Destination Bank Account' : 'Akun Bank Penerima'}
+                </span>
+                
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-400 uppercase font-bold block">Institution</label>
+                    <input
+                      required
+                      type="text"
+                      value={bankDetails.bankName}
+                      onChange={e => setBankDetails(prev => ({ ...prev, bankName: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold text-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-400 uppercase font-bold block">Account Number</label>
+                    <input
+                      required
+                      type="text"
+                      value={bankDetails.accountNumber}
+                      onChange={e => setBankDetails(prev => ({ ...prev, accountNumber: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono tracking-wider font-extrabold text-slate-800"
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[9px] text-slate-400 uppercase font-bold block">Account Holder Name</label>
+                    <input
+                      required
+                      type="text"
+                      value={bankDetails.accountName}
+                      onChange={e => setBankDetails(prev => ({ ...prev, accountName: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold text-slate-800 uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes input */}
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">
+                  {en ? 'Notes (Optional)' : 'Catatan / Alasan (Opsional)'}
+                </label>
+                <input
+                  type="text"
+                  value={withdrawNotes}
+                  onChange={e => setWithdrawNotes(e.target.value)}
+                  placeholder="e.g., Keperluan kas operasional hotel"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-750 font-normal"
+                />
+              </div>
+
+              {/* Fee and Payout calculations */}
+              <div className="border-t border-dashed pt-3.5 space-y-2">
+                <div className="flex justify-between items-center text-xs text-slate-500">
+                  <span className="font-normal">{en ? 'Admin Processing Fee' : 'Biaya Admin Transfer'}:</span>
+                  <span>{formatCurrencyIDR(5000)}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-100 pt-2">
+                  <span className="font-bold text-indigo-950">{en ? 'Net Settlement Amount' : 'Net Dana Diterima'}:</span>
+                  <strong className="text-emerald-650 font-black text-sm">
+                    {formatCurrencyIDR(Math.max(0, Number(withdrawAmount || 0) - 5000))}
+                  </strong>
+                </div>
+                <div className="flex justify-between items-center text-[10px] text-slate-400 border-t pt-1 font-normal">
+                  <span>{en ? 'Estimated Settlement' : 'Estimasi Pengiriman'}:</span>
+                  <span className="font-bold text-indigo-650 flex items-center gap-0.5 uppercase tracking-wider text-[9px]">
+                    {en ? 'Instan (BCA Jaringan 24/7)' : 'Instan (BCA Jaringan 24/7)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end border-t pt-4">
+              <button 
+                type="button" 
+                onClick={() => setShowWithdrawModal(false)}
+                className="px-4 py-2.5 hover:bg-slate-100 rounded-xl font-bold text-xs text-slate-500 cursor-pointer"
+              >
+                {en ? 'Cancel' : 'Batal'}
+              </button>
+              <button 
+                type="submit"
+                disabled={isSubmittingWithdraw || !withdrawAmount || Number(withdrawAmount) < 10000 || Number(withdrawAmount) > tenantBalance}
+                className="px-5 py-2.5 bg-indigo-650 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingWithdraw ? (en ? 'Submitting...' : 'Mengajukan...') : (en ? 'Confirm Withdrawal' : 'Konfirmasi Tarik Dana')}
               </button>
             </div>
           </form>

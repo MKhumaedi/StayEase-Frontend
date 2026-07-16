@@ -96,6 +96,14 @@ export interface Room {
   floor?: string;
   image?: string;
   availabilities?: RoomAvailability[];
+  quantity?: number;
+  activeBookingCount?: number;
+  dbStatus?: string;
+  isBlocked?: boolean;
+  isManuallyDisabled?: boolean;
+  remainingRooms?: number;
+  bookedRooms?: number;
+  availabilityStatus?: string;
 }
 
 export interface RoomAvailability {

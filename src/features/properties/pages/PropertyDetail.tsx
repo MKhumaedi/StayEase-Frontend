@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Property, Room, Review } from '../../../types';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { 
@@ -95,8 +95,37 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   const [data, setData] = useState<{ property: Property; rooms: Room[] } | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [startDate, setStartDate] = useState('2026-10-12');
-  const [endDate, setEndDate] = useState('2026-10-15');
+  const formatLocalDate = (date: Date): string => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const generateConsecutiveDates = (startFromStr: string, count: number): string[] => {
+    const dates: string[] = [];
+    const baseDate = new Date(startFromStr + 'T00:00:00');
+    if (isNaN(baseDate.getTime())) {
+      return [];
+    }
+    for (let i = 0; i < count; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + i);
+      dates.push(formatLocalDate(d));
+    }
+    return dates;
+  };
+
+  const hasInitializedDates = useRef(false);
+
+  const [startDate, setStartDate] = useState(() => {
+    return formatLocalDate(new Date());
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return formatLocalDate(tomorrow);
+  });
   const [guestCount, setGuestCount] = useState(() => {
     return params?.prefill?.guestCount ? Number(params.prefill.guestCount) : 1;
   });
@@ -109,14 +138,21 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   const [activeImgIdx, setActiveImgIdx] = useState(0);
   const [relatedProperties, setRelatedProperties] = useState<Property[]>([]);
 
+  const isRoomEnabled = (room: any) => {
+    if (!room) return false;
+    const status = room.availabilityStatus || 'Tersedia';
+    const remaining = typeof room.remainingRooms === 'number' ? room.remainingRooms : 1;
+    return (status === 'Tersedia' || status === 'Hampir Habis') && remaining > 0;
+  };
+
   const handleSelectDate = (isoDate: string) => {
     setStartDate(isoDate);
-    // If check-in is set to a date that is on or after check-out, automatically update check-out to check-in + 3 days to maintain a valid booking
+    // Default check-out must be one night after the selected check-in
     const checkinDate = new Date(isoDate);
     const checkoutDate = new Date(endDate);
     if (checkinDate >= checkoutDate) {
       const nextDate = new Date(checkinDate);
-      nextDate.setDate(nextDate.getDate() + 3);
+      nextDate.setDate(nextDate.getDate() + 1);
       const yyyy = nextDate.getFullYear();
       const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
       const dd = String(nextDate.getDate()).padStart(2, '0');
@@ -125,7 +161,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   };
 
   const getDynamicRates = (base: number) => {
-    const dates = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
+    const dates = generateConsecutiveDates(startDate, 10);
     return dates.map(dStr => {
       // Create a checkout date (dStr + 1 day)
       const dateParts = dStr.split('-');
@@ -164,6 +200,11 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
       let label = language === 'en' ? "Standard Rate" : "Tarif Dasar";
       let badgeClass = "bg-slate-100 text-slate-700 border border-slate-200";
 
+      const dParts = dStr.split('-');
+      const tempD = new Date(parseInt(dParts[0]), parseInt(dParts[1]) - 1, parseInt(dParts[2]));
+      const actualDayOfWeek = tempD.getDay(); // 0 is Sunday, 5 is Friday, 6 is Saturday
+      const isWeekend = actualDayOfWeek === 5 || actualDayOfWeek === 6 || actualDayOfWeek === 0;
+
       if (isPeak) {
         badge = match ? match.name : (language === 'en' ? "Peak Season" : "Musim Ramai");
         label = language === 'en' ? "Peak Season Rate" : "Tarif Musim Ramai";
@@ -172,7 +213,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
         badge = language === 'en' ? "Promo" : "Promo";
         label = language === 'en' ? "Special Promo" : "Promo Khusus";
         badgeClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
-      } else if (dStr === "2026-10-13") {
+      } else if (isWeekend) {
         badge = language === 'en' ? "Weekend" : "Weekend";
         label = language === 'en' ? "Weekend Markup" : "Tarif Akhir Pekan";
         badgeClass = "bg-amber-100 text-amber-700 border border-amber-200";
@@ -181,13 +222,19 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
       // Check if blocked in RoomAvailability
       const isBlocked = selectedRoom?.availabilities?.some((o: any) => o.date === dStr && o.isBlocked) || false;
 
+      const formattedLabelDate = (() => {
+        const parts = dStr.split('-');
+        const tempDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        const day = tempDate.getDate();
+        const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const monthNamesId = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+        const monthName = language === 'en' ? monthNamesEn[tempDate.getMonth()] : monthNamesId[tempDate.getMonth()];
+        return `${day} ${monthName}`;
+      })();
+
       return {
         isoDate: dStr,
-        date: dStr === "2026-10-12" ? (language === 'en' ? "12 Oct" : "12 Okt") :
-              dStr === "2026-10-13" ? (language === 'en' ? "13 Oct" : "13 Okt") :
-              dStr === "2026-10-14" ? (language === 'en' ? "14 Oct" : "14 Okt") :
-              dStr === "2026-10-15" ? (language === 'en' ? "15 Oct" : "15 Okt") :
-              (language === 'en' ? "16 Oct" : "16 Okt"),
+        date: formattedLabelDate,
         rate: isBlocked ? 0 : quote.subtotal,
         badge: isBlocked ? (language === 'en' ? "Closed" : "Tutup") : badge,
         label,
@@ -230,8 +277,8 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
       .catch(err => console.error('Error fetching reviews:', err));
   };
 
-  useEffect(() => {
-    fetch(`/api/properties/${propertyId}`)
+  const fetchPropertyData = () => {
+    fetch(`/api/properties/${propertyId}?checkIn=${startDate}&checkOut=${endDate}`)
       .then(res => res.json())
       .then(resData => {
         if (resData && resData.property) {
@@ -243,12 +290,57 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
         }
         setData(resData);
         if (resData && resData.rooms && resData.rooms.length > 0) {
+          if (!hasInitializedDates.current) {
+            const hasAvailableRoom = resData.rooms.some((r: any) => isRoomEnabled(r));
+            if (hasAvailableRoom) {
+              hasInitializedDates.current = true;
+            } else {
+              const findAvailableDates = async () => {
+                for (let offset = 1; offset < 90; offset++) {
+                  const checkInDate = new Date();
+                  checkInDate.setDate(checkInDate.getDate() + offset);
+                  const checkInStr = formatLocalDate(checkInDate);
+
+                  const checkOutDate = new Date(checkInDate);
+                  checkOutDate.setDate(checkOutDate.getDate() + 1);
+                  const checkOutStr = formatLocalDate(checkOutDate);
+
+                  try {
+                    const res = await fetch(`/api/properties/${propertyId}?checkIn=${checkInStr}&checkOut=${checkOutStr}`);
+                    const dataJson = await res.json();
+                    if (dataJson && dataJson.rooms && dataJson.rooms.length > 0) {
+                      const foundAvailable = dataJson.rooms.some((r: any) => {
+                        const status = r.availabilityStatus || 'Tersedia';
+                        const remaining = typeof r.remainingRooms === 'number' ? r.remainingRooms : 1;
+                        return (status === 'Tersedia' || status === 'Hampir Habis') && remaining > 0;
+                      });
+                      if (foundAvailable) {
+                        setStartDate(checkInStr);
+                        setEndDate(checkOutStr);
+                        hasInitializedDates.current = true;
+                        return;
+                      }
+                    }
+                  } catch (e) {
+                    console.error("Error finding future dates:", e);
+                  }
+                }
+                hasInitializedDates.current = true;
+              };
+              findAvailableDates();
+              return;
+            }
+          }
+
           const prefillRoomId = params?.prefill?.roomId;
           if (prefillRoomId) {
             const matchedRoom = resData.rooms.find((r: any) => r.id === prefillRoomId);
             if (matchedRoom) {
-              if (matchedRoom.status === 'Available') {
-                setSelectedRoom(matchedRoom);
+              if (isRoomEnabled(matchedRoom)) {
+                setSelectedRoom(prev => {
+                  const updated = resData.rooms.find((r: any) => r.id === (prev?.id || prefillRoomId));
+                  return updated || matchedRoom;
+                });
                 setRoomUnavailableWarning(null);
               } else {
                 setSelectedRoom(null);
@@ -267,11 +359,29 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               );
             }
           } else {
-            setSelectedRoom(resData.rooms[0]);
+            setSelectedRoom(prev => {
+              if (prev) {
+                const updated = resData.rooms.find((r: any) => r.id === prev.id);
+                return updated || resData.rooms[0];
+              }
+              return resData.rooms[0];
+            });
           }
         }
-      });
-  }, [propertyId, params]);
+      })
+      .catch(err => console.error('Error fetching property:', err));
+  };
+
+  useEffect(() => {
+    fetchPropertyData();
+  }, [propertyId, params, startDate, endDate]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchPropertyData();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [propertyId, startDate, endDate]);
 
   useEffect(() => {
     fetchReviewsOfProperty();
@@ -673,7 +783,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               </div>
 
               {/* Card 6: Family Friendly */}
-              {((property.guests ?? 0) >= 4 || (property.beds ?? 0) >= 3) && (
+              {(property.guests >= 4 || property.beds >= 3) && (
                 <div className="p-4 bg-teal-50/30 border border-teal-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-teal-200">
                   <Heart className="w-5 h-5 text-teal-600" />
                   <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Family Friendly' : 'Ramah Keluarga'}</span>
@@ -757,13 +867,38 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   return { bedCount: 1, bathCount: 1, quantity: 1 };
                 })();
 
+                const remainingRooms = typeof r.remainingRooms === 'number' ? r.remainingRooms : 0;
+                const availabilityStatus = r.availabilityStatus || 'Tersedia';
+
+                let badgeText = '';
+                let badgeClass = '';
+                let isButtonEnabled = false;
+
+                if (availabilityStatus === 'Tidak Tersedia') {
+                  badgeText = language === 'en' ? 'Not Available' : 'Tidak Tersedia';
+                  badgeClass = 'bg-slate-100 text-slate-600 border border-slate-200';
+                  isButtonEnabled = false;
+                } else if (availabilityStatus === 'Penuh') {
+                  badgeText = language === 'en' ? 'Sold Out' : 'Penuh';
+                  badgeClass = 'bg-red-50 text-red-700 border border-red-100';
+                  isButtonEnabled = false;
+                } else if (availabilityStatus === 'Hampir Habis') {
+                  badgeText = language === 'en' ? `Almost Sold Out • Only ${remainingRooms} left` : `Hampir Habis • Sisa ${remainingRooms} kamar`;
+                  badgeClass = 'bg-amber-50 text-amber-700 border border-amber-100';
+                  isButtonEnabled = true;
+                } else {
+                  badgeText = language === 'en' ? `Available • Only ${remainingRooms} left` : `Tersedia • Sisa ${remainingRooms} kamar`;
+                  badgeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+                  isButtonEnabled = true;
+                }
+
                 const isSelected = selectedRoom?.id === r.id;
 
                 return (
                   <div 
                     key={r.id ? `room-${r.id}-${idx}` : `room-${idx}`} 
                     onClick={() => {
-                      if (r.status === 'Available') {
+                      if (isButtonEnabled) {
                         setSelectedRoom(r); 
                         setRoomUnavailableWarning(null);
                       } else {
@@ -777,7 +912,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                     className={`p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row gap-5 items-stretch md:items-center justify-between ${
                       isSelected 
                         ? 'border-indigo-600 bg-indigo-50/10 shadow-xs scale-[1.01]' 
-                        : r.status !== 'Available'
+                        : !isButtonEnabled
                           ? 'border-slate-100 bg-slate-50/50 opacity-60 cursor-not-allowed'
                           : 'border-slate-100 bg-white hover:border-slate-300 hover:bg-slate-50/30 hover:scale-[1.005]'
                     }`}
@@ -805,10 +940,8 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                           <h4 className="font-extrabold text-slate-800 text-sm sm:text-base">
                             {r.name}
                           </h4>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold leading-none ${
-                            r.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'
-                          }`}>
-                            {r.status === 'Available' ? t.common.available : r.status === 'Occupied' ? t.common.occupied : t.common.maintenance}
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold leading-none ${badgeClass}`}>
+                            {badgeText}
                           </span>
                         </div>
 
@@ -829,16 +962,16 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                       </div>
                     </div>
 
-                    <div className="flex md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
+                    <div className="flex items-center md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Price per night' : 'Harga per malam'}</span>
                         <span className="text-lg font-black text-indigo-950 block">{formatCurrencyIDR(r.basePrice)}</span>
                       </div>
                       <button 
-                        disabled={r.status !== 'Available'}
+                        disabled={!isButtonEnabled}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (r.status === 'Available') {
+                          if (isButtonEnabled) {
                             setSelectedRoom(r); 
                             setRoomUnavailableWarning(null);
                           }
@@ -846,7 +979,9 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                         className={`text-xs font-bold px-4 py-2 rounded-xl cursor-pointer transition-all ${
                           isSelected 
                             ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-100' 
-                            : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100/70'
+                            : !isButtonEnabled
+                              ? 'bg-slate-150 text-slate-400 cursor-not-allowed'
+                              : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100/70'
                         }`}
                       >
                         {isSelected ? (language === 'en' ? 'Selected' : 'Terpilih') : (language === 'en' ? 'Select Room' : 'Pilih Kamar')}
@@ -877,7 +1012,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   <button
                     key={dr.isoDate}
                     onClick={() => handleSelectDate(dr.isoDate)}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-37.5 sm:w-auto ${
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-[150px] sm:w-auto ${
                       isSelected 
                         ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-600/10 shadow-xs' 
                         : 'border-slate-150 bg-white hover:bg-slate-50'
@@ -906,7 +1041,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2 mt-2">
-              <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
               <p className="leading-relaxed">
                 {language === 'en' 
                   ? 'Click on any date card above to automatically update your check-in date in the booking sidebar.' 
@@ -1102,7 +1237,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 {/* Map Placeholder */}
                 <div className="md:col-span-7 bg-slate-100 rounded-2xl overflow-hidden border border-slate-150 h-56 relative group shadow-xs">
                   {/* Styled simulated map */}
-                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [bg-size:16px_16px] bg-slate-50 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] bg-slate-50 flex items-center justify-center">
                     <div className="text-center p-6 relative z-10">
                       <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2 text-indigo-600 animate-bounce">
                         <MapPin className="w-6 h-6" />
@@ -1252,10 +1387,16 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             <hr className="border-slate-100" />
 
             {/* Error/Warning area */}
-            {roomUnavailableWarning && (
+            {(roomUnavailableWarning || (selectedRoom && !isRoomEnabled(selectedRoom))) && (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 font-semibold p-3.5 rounded-2xl text-xs font-sans flex items-start gap-2 animate-in fade-in duration-200">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{roomUnavailableWarning}</span>
+                <span>
+                  {roomUnavailableWarning || (
+                    language === 'en' 
+                      ? 'Selected room is unavailable for these dates. Please choose another room.' 
+                      : 'Kamar yang dipilih tidak tersedia untuk tanggal tersebut. Silakan pilih kamar lain.'
+                  )}
+                </span>
               </div>
             )}
 
@@ -1374,12 +1515,13 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             )}
 
             <button 
-              disabled={!selectedRoom || !startDate || !endDate || (new Date(startDate) >= new Date(endDate)) || guestCount <= 0} 
+              disabled={!selectedRoom || !isRoomEnabled(selectedRoom) || !startDate || !endDate || (new Date(startDate) >= new Date(endDate)) || guestCount <= 0} 
               onClick={handleBook} 
               className="w-full bg-indigo-900 hover:bg-indigo-850 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-extrabold py-3.5 px-4 rounded-2xl text-sm cursor-pointer shadow-indigo-100 shadow-sm transition-all text-center hover:scale-[1.01] active:scale-[0.99]"
             >
               {!selectedRoom 
                 ? (language === 'en' ? 'Please Select a Room First' : 'Silakan Pilih Kamar Dahulu')
+                : !isRoomEnabled(selectedRoom) ? (language === 'en' ? 'Selected Room is Unavailable' : 'Kamar yang Dipilih Tidak Tersedia')
                 : (!startDate || !endDate) ? (language === 'en' ? 'Select Valid Dates' : 'Pilih Tanggal Valid')
                 : (new Date(startDate) >= new Date(endDate)) ? (language === 'en' ? 'Check-in must be before check-out' : 'Check-in harus sebelum check-out')
                 : guestCount <= 0 ? (language === 'en' ? 'Guest count must be > 0' : 'Jumlah tamu harus > 0')

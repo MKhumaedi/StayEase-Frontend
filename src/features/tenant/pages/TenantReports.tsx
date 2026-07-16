@@ -184,7 +184,7 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
         </button>
       </div>
 
-      {/* Dynamic Report Controls & Filters */}
+      {/* 1. Dynamic Report Controls & Filters */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
           {/* Property Dropdown Selector */}
@@ -268,7 +268,7 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
         )}
       </div>
 
-      {/* Grid of 5 Revenue Metric Cards */}
+      {/* 2. Snapshot KPI Cards */}
       <div>
         <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-widest mb-3 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-indigo-650" />
@@ -282,7 +282,7 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
               <span className="text-[9px] font-black text-indigo-200 uppercase tracking-widest block mb-1">
                 {language === 'en' ? 'Total Revenue (All Time)' : 'Pendapatan Total'}
               </span>
-              <span className="text-lg font-black font-display tracking-tight text-indigo-50 block truncate">
+              <span className="text-lg font-black font-display tracking-tight text-indigo-5 block truncate">
                 {formatCurrencyIDR(reports.totalRevenueAllTime ?? 0)}
               </span>
             </div>
@@ -355,7 +355,178 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
         </div>
       </div>
 
-      {/* Grid of 4 Operational Metric Cards */}
+      {/* Modern segmented tab selector to focus on specific report categories */}
+      <div className="flex bg-slate-100/85 p-1 rounded-2xl w-fit self-center border border-slate-200/50 mt-2 relative">
+        <button
+          onClick={() => setActiveSegment('revenue')}
+          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
+            activeSegment === 'revenue' 
+              ? 'bg-indigo-900 text-white shadow-sm' 
+              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
+          }`}
+        >
+          {language === 'en' ? 'Revenue Overview' : 'Ikhtisar Pendapatan'}
+        </button>
+        <button
+          onClick={() => setActiveSegment('bookings')}
+          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
+            activeSegment === 'bookings' 
+              ? 'bg-indigo-900 text-white shadow-sm' 
+              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
+          }`}
+        >
+          {language === 'en' ? 'Booking Trends' : 'Tren Pemesanan'}
+        </button>
+        <button
+          onClick={() => setActiveSegment('occupancy')}
+          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
+            activeSegment === 'occupancy' 
+              ? 'bg-indigo-900 text-white shadow-sm' 
+              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
+          }`}
+        >
+          {language === 'en' ? 'Occupancy Rate' : 'Tingkat Okupansi'}
+        </button>
+        {loading && (
+          <div className="absolute -right-12 inset-y-0 flex items-center">
+            <div className="w-4 h-4 border-2 border-indigo-900 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+      </div>
+
+      {/* Main reports visualization container */}
+      <div className={`bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs transition-opacity duration-300 ${loading ? 'opacity-70' : 'opacity-100'}`}>
+        
+        {/* 3. Revenue Analytics */}
+        {activeSegment === 'revenue' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
+                  {language === 'en' ? 'Revenue Overview' : 'Ikhtisar Pendapatan Aktual'}
+                </h3>
+                <p className="text-[11px] text-slate-450 font-semibold mb-4">
+                  {language === 'en' ? 'Analyzing periodic gross receipts against targets.' : 'Analisis penerimaan kotor periodik terhadap target.'}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Period Total' : 'Total Periode'}</span>
+                <span className="text-xl font-extrabold text-indigo-900 font-display">{formatCurrencyIDR(totalAnnualRevenue)}</span>
+              </div>
+            </div>
+
+            <div className="h-80 w-full mt-2">
+              {dataset.length > 0 && dataset.some((item: any) => item.revenue > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dataset} margin={{ top: 20, right: 10, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `Rp${val >= 1000000 ? (val / 1000000).toFixed(0) + 'jt' : val}`} />
+                    <Tooltip 
+                      formatter={(value: any) => [formatCurrencyIDR(value), '']}
+                      contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} 
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                    <Bar name={language === 'en' ? 'Actual Revenue' : 'Pendapatan Aktual'} dataKey="revenue" fill="#312e81" radius={[4, 4, 0, 0]} />
+                    <Bar name={language === 'en' ? 'Target Revenue' : 'Target Penerimaan'} dataKey="target" fill="#6366f1" radius={[4, 4, 0, 0]} opacity={0.65} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <DollarSign className="w-8 h-8 mb-2 text-slate-300 animate-pulse" />
+                  <p className="text-xs font-semibold">{language === 'en' ? 'No revenue data recorded' : 'Belum ada data pendapatan'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 4. Booking Trend Analytics */}
+        {activeSegment === 'bookings' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
+                  {language === 'en' ? 'Booking Volume & Retention Trends' : 'Volume Pemesanan & Tren Retensi'}
+                </h3>
+                <p className="text-[11px] text-slate-450 font-semibold mb-4">
+                  {language === 'en' ? 'Distribution of customer bookings and length of stay durations.' : 'Distribusi pesanan tamu dan durasi sewa.'}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Average Leadtime' : 'Waktu Pemesanan Rata-Rata'}</span>
+                <span className="text-xl font-extrabold text-teal-700 font-display">+{averageBookingLeadTime} {language === 'en' ? 'Days' : 'Hari'}</span>
+              </div>
+            </div>
+
+            <div className="h-80 w-full mt-2">
+              {dataset.length > 0 && dataset.some((item: any) => item.bookings > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dataset} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                    <Line name={language === 'en' ? 'Bookings Volume' : 'Jumlah Pemesanan'} type="monotone" dataKey="bookings" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    <Line name={language === 'en' ? 'Avg Stay Duration (Nights)' : 'Rata Menginap (Malam)'} type="monotone" dataKey="lengthOfStay" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="5 5" />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <Layers className="w-8 h-8 mb-2 text-slate-300" />
+                  <p className="text-xs font-semibold">{language === 'en' ? 'No bookings recorded' : 'Belum ada data pemesanan'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 5. Occupancy Analytics */}
+        {activeSegment === 'occupancy' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
+                  {language === 'en' ? 'Occupancy Rate Diagnostics (%)' : 'Metrik Tingkat Okupansi (%)'}
+                </h3>
+                <p className="text-[11px] text-slate-450 font-semibold mb-4">
+                  {language === 'en' ? 'Tracking weekend surges against weekday occupancy levels.' : 'Memantau lonjakan akhir pekan terhadap level okupansi hari biasa.'}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Period Average' : 'Rata-rata Periode'}</span>
+                <span className="text-xl font-extrabold text-amber-700 font-display">{averageOccupancy}%</span>
+              </div>
+            </div>
+
+            <div className="h-80 w-full mt-2">
+              {dataset.length > 0 && dataset.some((item: any) => item.rate > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dataset} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                    <Area type="monotone" name={language === 'en' ? 'Base Occupancy' : 'Okupansi Dasar'} dataKey="rate" stroke="#0369a1" fill="#f0f9ff" strokeWidth={2} />
+                    <Area type="monotone" name={language === 'en' ? 'Weekend Outliers' : 'Okupansi Akhir Pekan'} dataKey="weekendRate" stroke="#b45309" fill="#fffbeb" strokeWidth={2} opacity={0.4} />
+                    <ReferenceLine y={80} stroke="#dc2626" strokeDasharray="3 3" label={{ value: 'Target: 80%', fill: '#dc2626', fontSize: 10, position: 'top', fontWeight: 'bold' }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <Percent className="w-8 h-8 mb-2 text-slate-300" />
+                  <p className="text-xs font-semibold">{language === 'en' ? 'No occupancy rate recorded' : 'Belum ada data okupansi'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* 6. Additional KPI Section (Operational Metrics) */}
       <div>
         <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-widest mb-3 flex items-center gap-2">
           <Layers className="w-4 h-4 text-indigo-650" />
@@ -428,174 +599,6 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
           </div>
 
         </div>
-      </div>
-
-      {/* Modern segmented tab selector to focus on specific report categories */}
-      <div className="flex bg-slate-100/85 p-1 rounded-2xl w-fit self-center border border-slate-200/50 mt-2 relative">
-        <button
-          onClick={() => setActiveSegment('revenue')}
-          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
-            activeSegment === 'revenue' 
-              ? 'bg-indigo-900 text-white shadow-sm' 
-              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
-          }`}
-        >
-          {language === 'en' ? 'Revenue Overview' : 'Ikhtisar Pendapatan'}
-        </button>
-        <button
-          onClick={() => setActiveSegment('bookings')}
-          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
-            activeSegment === 'bookings' 
-              ? 'bg-indigo-900 text-white shadow-sm' 
-              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
-          }`}
-        >
-          {language === 'en' ? 'Booking Trends' : 'Tren Pemesanan'}
-        </button>
-        <button
-          onClick={() => setActiveSegment('occupancy')}
-          className={`px-6 py-2 rounded-xl text-xs font-black transition-all cursor-pointer focus:outline-hidden ${
-            activeSegment === 'occupancy' 
-              ? 'bg-indigo-900 text-white shadow-sm' 
-              : 'text-slate-600 hover:text-indigo-900 hover:bg-slate-50/50'
-          }`}
-        >
-          {language === 'en' ? 'Occupancy Rate' : 'Tingkat Okupansi'}
-        </button>
-        {loading && (
-          <div className="absolute -right-12 inset-y-0 flex items-center">
-            <div className="w-4 h-4 border-2 border-indigo-900 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
-      </div>
-
-      {/* Main reports visualization container */}
-      <div className={`bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs transition-opacity duration-300 ${loading ? 'opacity-70' : 'opacity-100'}`}>
-        
-        {activeSegment === 'revenue' && (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
-                  {language === 'en' ? 'Revenue Overview' : 'Ikhtisar Pendapatan Aktual'}
-                </h3>
-                <p className="text-[11px] text-slate-450 font-semibold mb-4">
-                  {language === 'en' ? 'Analyzing periodic gross receipts against targets.' : 'Analisis penerimaan kotor periodik terhadap target.'}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Period Total' : 'Total Periode'}</span>
-                <span className="text-xl font-extrabold text-indigo-900 font-display">{formatCurrencyIDR(totalAnnualRevenue)}</span>
-              </div>
-            </div>
-
-            <div className="h-80 w-full mt-2">
-              {dataset.length > 0 && dataset.some((item: any) => item.revenue > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dataset} margin={{ top: 20, right: 10, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `Rp${val >= 1000000 ? (val / 1000000).toFixed(0) + 'jt' : val}`} />
-                    <Tooltip 
-                      formatter={(value: any) => [formatCurrencyIDR(value), '']}
-                      contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} 
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                    <Bar name={language === 'en' ? 'Actual Revenue' : 'Pendapatan Aktual'} dataKey="revenue" fill="#312e81" radius={[4, 4, 0, 0]} />
-                    <Bar name={language === 'en' ? 'Target Revenue' : 'Target Penerimaan'} dataKey="target" fill="#6366f1" radius={[4, 4, 0, 0]} opacity={0.65} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <DollarSign className="w-8 h-8 mb-2 text-slate-300 animate-pulse" />
-                  <p className="text-xs font-semibold">{language === 'en' ? 'No revenue data recorded' : 'Belum ada data pendapatan'}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeSegment === 'bookings' && (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
-                  {language === 'en' ? 'Booking Volume & Retention Trends' : 'Volume Pemesanan & Tren Retensi'}
-                </h3>
-                <p className="text-[11px] text-slate-450 font-semibold mb-4">
-                  {language === 'en' ? 'Distribution of customer bookings and length of stay durations.' : 'Distribusi pesanan tamu dan durasi sewa.'}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Average Leadtime' : 'Waktu Pemesanan Rata-Rata'}</span>
-                <span className="text-xl font-extrabold text-teal-700 font-display">+{averageBookingLeadTime} {language === 'en' ? 'Days' : 'Hari'}</span>
-              </div>
-            </div>
-
-            <div className="h-80 w-full mt-2">
-              {dataset.length > 0 && dataset.some((item: any) => item.bookings > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={dataset} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                    <Line name={language === 'en' ? 'Bookings Volume' : 'Jumlah Pemesanan'} type="monotone" dataKey="bookings" stroke="#0f766e" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                    <Line name={language === 'en' ? 'Avg Stay Duration (Nights)' : 'Rata Menginap (Malam)'} type="monotone" dataKey="lengthOfStay" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="5 5" />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Layers className="w-8 h-8 mb-2 text-slate-300" />
-                  <p className="text-xs font-semibold">{language === 'en' ? 'No bookings recorded' : 'Belum ada data pemesanan'}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeSegment === 'occupancy' && (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1">
-                  {language === 'en' ? 'Occupancy Rate Diagnostics (%)' : 'Metrik Tingkat Okupansi (%)'}
-                </h3>
-                <p className="text-[11px] text-slate-450 font-semibold mb-4">
-                  {language === 'en' ? 'Tracking weekend surges against weekday occupancy levels.' : 'Memantau lonjakan akhir pekan terhadap level okupansi hari biasa.'}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase">{language === 'en' ? 'Period Average' : 'Rata-rata Periode'}</span>
-                <span className="text-xl font-extrabold text-amber-700 font-display">{averageOccupancy}%</span>
-              </div>
-            </div>
-
-            <div className="h-80 w-full mt-2">
-              {dataset.length > 0 && dataset.some((item: any) => item.rate > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dataset} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', borderColor: '#f1f5f9', fontSize: '11px', fontWeight: 'bold' }} />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                    <Area type="monotone" name={language === 'en' ? 'Base Occupancy' : 'Okupansi Dasar'} dataKey="rate" stroke="#0369a1" fill="#f0f9ff" strokeWidth={2} />
-                    <Area type="monotone" name={language === 'en' ? 'Weekend Outliers' : 'Okupansi Akhir Pekan'} dataKey="weekendRate" stroke="#b45309" fill="#fffbeb" strokeWidth={2} opacity={0.4} />
-                    <ReferenceLine y={80} stroke="#dc2626" strokeDasharray="3 3" label={{ value: 'Target: 80%', fill: '#dc2626', fontSize: 10, position: 'top', fontWeight: 'bold' }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col justify-center items-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Percent className="w-8 h-8 mb-2 text-slate-300" />
-                  <p className="text-xs font-semibold">{language === 'en' ? 'No occupancy rate recorded' : 'Belum ada data okupansi'}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
       </div>
 
       {/* Export Confirmation Modal */}

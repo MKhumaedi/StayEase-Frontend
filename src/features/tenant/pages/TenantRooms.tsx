@@ -29,6 +29,7 @@ export default function TenantRooms() {
       capacity,
       basePrice: price,
       status: 'Available',
+      availabilityStatus: 'Tersedia',
       wing,
       floor: 'Floor 1'
     };
@@ -133,8 +134,13 @@ export default function TenantRooms() {
                 <td className="p-3 text-slate-800 font-bold">{r.capacity} Guests</td>
                 <td className="p-3 text-slate-800 font-black">{formatCurrencyIDR(r.basePrice)} / night</td>
                 <td className="p-3">
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${r.status === 'Available' ? 'bg-emerald-50 text-emerald-600' : r.status === 'Occupied' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                    {r.status}
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                    (r.availabilityStatus || 'Tersedia') === 'Tersedia' ? 'bg-emerald-50 text-emerald-600' :
+                    (r.availabilityStatus || 'Tersedia') === 'Hampir Habis' ? 'bg-amber-50 text-amber-600' :
+                    (r.availabilityStatus || 'Tersedia') === 'Penuh' ? 'bg-red-50 text-red-600' :
+                    'bg-slate-150 text-slate-650'
+                  }`}>
+                    {r.availabilityStatus || 'Tersedia'}
                   </span>
                 </td>
               </tr>

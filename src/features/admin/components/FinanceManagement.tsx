@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CreditCard, TrendingUp, DollarSign, Calendar, Percent, ShieldCheck } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, BarChart, Bar } from 'recharts';
 import PaymentManagement from './PaymentManagement';
+import AdminWithdrawalPanel from './AdminWithdrawalPanel';
 
 interface FinanceManagementProps {
   payments: any[];
@@ -18,7 +19,7 @@ export default function FinanceManagement({
   stats,
   trends
 }: FinanceManagementProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'transactions' | 'revenue'>('transactions');
+  const [activeSubTab, setActiveSubTab] = useState<'transactions' | 'revenue' | 'withdrawals'>('transactions');
 
   return (
     <div className="space-y-6" id="finance-management-root">
@@ -59,17 +60,34 @@ export default function FinanceManagement({
         >
           Revenue Reports
         </button>
+        <button
+          onClick={() => setActiveSubTab('withdrawals')}
+          className={`px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+            activeSubTab === 'withdrawals'
+              ? 'border-indigo-600 text-indigo-600 font-black'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+          id="btn-finance-withdrawals"
+        >
+          Withdrawal Requests
+        </button>
       </div>
 
       {/* Subtab Content Viewports */}
       <div id="finance-viewport" className="mt-4">
-        {activeSubTab === 'transactions' ? (
+        {activeSubTab === 'transactions' && (
           <PaymentManagement 
             payments={payments}
             onConfirmPayment={onConfirmPayment}
             onRejectPayment={onRejectPayment}
           />
-        ) : (
+        )}
+        
+        {activeSubTab === 'withdrawals' && (
+          <AdminWithdrawalPanel />
+        )}
+
+        {activeSubTab === 'revenue' && (
           <div className="space-y-6" id="revenue-reports-pane">
             {/* Financial Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
