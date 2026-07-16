@@ -783,7 +783,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               </div>
 
               {/* Card 6: Family Friendly */}
-              {(property.guests >= 4 || property.beds >= 3) && (
+              {(property.guests != null && property.guests >= 4 || property.beds != null && property.beds >= 3) && (
                 <div className="p-4 bg-teal-50/30 border border-teal-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-teal-200">
                   <Heart className="w-5 h-5 text-teal-600" />
                   <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Family Friendly' : 'Ramah Keluarga'}</span>
@@ -962,7 +962,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                       </div>
                     </div>
 
-                    <div className="flex items-end md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
+                    <div className="flex md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Price per night' : 'Harga per malam'}</span>
                         <span className="text-lg font-black text-indigo-950 block">{formatCurrencyIDR(r.basePrice)}</span>
