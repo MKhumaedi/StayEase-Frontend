@@ -781,7 +781,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
             <p className="text-[11px] text-slate-450 font-normal mb-4 leading-relaxed">
               {en ? 'Please explain why this payment setup was rejected.' : 'Berikan penjelasan agar traveler dapat mengunggah bukti/slip dengan benar.'}
             </p>
-            <textarea required value={reasonInput} onChange={e => setReasonInput(e.target.value)} placeholder={en ? 'E.g., Transfer amount does not match booking invoice.' : 'Contoh: Jumlah transfer kurang dari invoice booking.'} className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50 min-h-[90px] focus:outline-hidden font-semibold text-slate-700 mb-4 focus:ring-1 focus:ring-indigo-500" />
+            <textarea required value={reasonInput} onChange={e => setReasonInput(e.target.value)} placeholder={en ? 'E.g., Transfer amount does not match booking invoice.' : 'Contoh: Jumlah transfer kurang dari invoice booking.'} className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50 min-h-22.5 focus:outline-hidden font-semibold text-slate-700 mb-4 focus:ring-1 focus:ring-indigo-500" />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => { setRejectId(null); setReasonInput(''); }} className="px-4 py-2 hover:bg-slate-100 rounded-xl font-bold text-xs text-slate-500 cursor-pointer">Batal</button>
               <button type="submit" className="px-5 py-2 bg-rose-600 hover:bg-rose-750 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">

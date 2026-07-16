@@ -277,7 +277,7 @@ export default function TenantReports({ initialSegment }: { initialSegment?: 're
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           
           {/* Card 1: Total Revenue (All-Time) */}
-          <div className="bg-gradient-to-br from-indigo-950 to-slate-900 p-4 rounded-xl border border-indigo-900 flex flex-col justify-between shadow-xs text-white">
+          <div className="bg-linear-to-br from-indigo-950 to-slate-900 p-4 rounded-xl border border-indigo-900 flex flex-col justify-between shadow-xs text-white">
             <div>
               <span className="text-[9px] font-black text-indigo-200 uppercase tracking-widest block mb-1">
                 {language === 'en' ? 'Total Revenue (All Time)' : 'Pendapatan Total'}

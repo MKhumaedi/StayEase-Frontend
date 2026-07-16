@@ -962,7 +962,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                       </div>
                     </div>
 
-                    <div className="flex items-center md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
+                    <div className="flex items-end md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Price per night' : 'Harga per malam'}</span>
                         <span className="text-lg font-black text-indigo-950 block">{formatCurrencyIDR(r.basePrice)}</span>
@@ -1012,7 +1012,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   <button
                     key={dr.isoDate}
                     onClick={() => handleSelectDate(dr.isoDate)}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-[150px] sm:w-auto ${
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-37.5 sm:w-auto ${
                       isSelected 
                         ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-600/10 shadow-xs' 
                         : 'border-slate-150 bg-white hover:bg-slate-50'
@@ -1041,7 +1041,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2 mt-2">
-              <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+              <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">
                 {language === 'en' 
                   ? 'Click on any date card above to automatically update your check-in date in the booking sidebar.' 
@@ -1237,7 +1237,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 {/* Map Placeholder */}
                 <div className="md:col-span-7 bg-slate-100 rounded-2xl overflow-hidden border border-slate-150 h-56 relative group shadow-xs">
                   {/* Styled simulated map */}
-                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] bg-slate-50 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [bg-size:16px_16px] bg-slate-50 flex items-center justify-center">
                     <div className="text-center p-6 relative z-10">
                       <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2 text-indigo-600 animate-bounce">
                         <MapPin className="w-6 h-6" />
