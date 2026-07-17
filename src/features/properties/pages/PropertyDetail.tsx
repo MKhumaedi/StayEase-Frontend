@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Property, Room, Review } from '../../../types';
 import { useAuth } from '../../../shared/context/AuthContext';
+import { CalendarDatePicker } from '../components/CalendarDatePicker';
 import { 
   Star, Shield, ArrowLeft, Eye, MessageSquare, BedDouble, HelpCircle, Heart,
   Wifi, Wind, Waves, Bath, Sparkles, Utensils, Film, Compass, Mountain, Car, Dumbbell, Tv, Check, Coffee, AlertTriangle, Info,
@@ -138,6 +139,25 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   const [activeImgIdx, setActiveImgIdx] = useState(0);
   const [relatedProperties, setRelatedProperties] = useState<Property[]>([]);
 
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [activeCalendarField, setActiveCalendarField] = useState<'checkIn' | 'checkOut'>('checkIn');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const isPastDate = (dateStr: string): boolean => {
+    if (!dateStr) return false;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return false;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const checkDate = new Date(year, month, day);
+    
+    const todayObj = new Date();
+    todayObj.setHours(0, 0, 0, 0);
+    
+    return checkDate < todayObj;
+  };
+
   const isRoomEnabled = (room: any) => {
     if (!room) return false;
     const status = room.availabilityStatus || 'Tersedia';
@@ -146,7 +166,23 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   };
 
   const handleSelectDate = (isoDate: string) => {
+    if (isPastDate(isoDate)) {
+      const todayStr = formatLocalDate(new Date());
+      setStartDate(todayStr);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setEndDate(formatLocalDate(tomorrow));
+      setValidationError(
+        language === 'en' 
+          ? "Check-in cannot be earlier than today." 
+          : "Check-in tidak boleh sebelum hari ini."
+      );
+      return;
+    }
+
+    setValidationError(null);
     setStartDate(isoDate);
+
     // Default check-out must be one night after the selected check-in
     const checkinDate = new Date(isoDate);
     const checkoutDate = new Date(endDate);
@@ -157,6 +193,20 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
       const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
       const dd = String(nextDate.getDate()).padStart(2, '0');
       setEndDate(`${yyyy}-${mm}-${dd}`);
+    }
+  };
+
+  const handleSelectEndDate = (isoDate: string) => {
+    const checkinDate = new Date(startDate);
+    const checkoutDate = new Date(isoDate);
+    if (isNaN(checkoutDate.getTime())) return;
+
+    if (checkoutDate <= checkinDate) {
+      const nextDate = new Date(checkinDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      setEndDate(formatLocalDate(nextDate));
+    } else {
+      setEndDate(isoDate);
     }
   };
 
@@ -783,7 +833,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               </div>
 
               {/* Card 6: Family Friendly */}
-              {(property.guests != null && property.guests >= 4 || property.beds != null && property.beds >= 3) && (
+              {(property.guests >= 4 || property.beds >= 3) && (
                 <div className="p-4 bg-teal-50/30 border border-teal-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-teal-200">
                   <Heart className="w-5 h-5 text-teal-600" />
                   <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Family Friendly' : 'Ramah Keluarga'}</span>
@@ -962,7 +1012,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                       </div>
                     </div>
 
-                    <div className="flex md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
+                    <div className="flex items-center md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Price per night' : 'Harga per malam'}</span>
                         <span className="text-lg font-black text-indigo-950 block">{formatCurrencyIDR(r.basePrice)}</span>
@@ -1012,7 +1062,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   <button
                     key={dr.isoDate}
                     onClick={() => handleSelectDate(dr.isoDate)}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-37.5 sm:w-auto ${
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-[150px] sm:w-auto ${
                       isSelected 
                         ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-600/10 shadow-xs' 
                         : 'border-slate-150 bg-white hover:bg-slate-50'
@@ -1041,7 +1091,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2 mt-2">
-              <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
               <p className="leading-relaxed">
                 {language === 'en' 
                   ? 'Click on any date card above to automatically update your check-in date in the booking sidebar.' 
@@ -1237,7 +1287,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 {/* Map Placeholder */}
                 <div className="md:col-span-7 bg-slate-100 rounded-2xl overflow-hidden border border-slate-150 h-56 relative group shadow-xs">
                   {/* Styled simulated map */}
-                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [bg-size:16px_16px] bg-slate-50 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] bg-slate-50 flex items-center justify-center">
                     <div className="text-center p-6 relative z-10">
                       <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2 text-indigo-600 animate-bounce">
                         <MapPin className="w-6 h-6" />
@@ -1401,27 +1451,119 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             )}
 
             {/* Inputs Section */}
-            <div className="space-y-3">
+            <div className="space-y-3 relative">
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-600/10 focus-within:border-indigo-600 transition-all">
+                <div 
+                  onClick={() => {
+                    setActiveCalendarField('checkIn');
+                    setIsCalendarOpen(true);
+                  }}
+                  className={`p-2.5 bg-slate-50 border rounded-xl focus-within:ring-2 focus-within:ring-indigo-600/10 focus-within:border-indigo-600 transition-all cursor-pointer ${
+                    isCalendarOpen && activeCalendarField === 'checkIn' ? 'border-indigo-600 ring-2 ring-indigo-600/10' : 'border-slate-200'
+                  }`}
+                >
                   <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">{language === 'en' ? 'Check In' : 'Check In'}</label>
                   <input 
-                    type="date" 
+                    type="text" 
                     value={startDate} 
-                    onChange={e => handleSelectDate(e.target.value)} 
+                    placeholder="YYYY-MM-DD"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setStartDate(val);
+                      if (val.length >= 10) {
+                        handleSelectDate(val);
+                      }
+                    }}
+                    onBlur={e => {
+                      const val = e.target.value;
+                      const parsed = new Date(val);
+                      if (isNaN(parsed.getTime()) || isPastDate(val) || val.length < 10) {
+                        const todayStr = formatLocalDate(new Date());
+                        setStartDate(todayStr);
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        setEndDate(formatLocalDate(tomorrow));
+                        setValidationError(
+                          language === 'en' 
+                            ? "Check-in cannot be earlier than today." 
+                            : "Check-in tidak boleh sebelum hari ini."
+                        );
+                      } else {
+                        handleSelectDate(val);
+                      }
+                    }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setActiveCalendarField('checkIn');
+                      setIsCalendarOpen(true);
+                    }}
                     className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer" 
                   />
                 </div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-600/10 focus-within:border-indigo-600 transition-all">
+                <div 
+                  onClick={() => {
+                    setActiveCalendarField('checkOut');
+                    setIsCalendarOpen(true);
+                  }}
+                  className={`p-2.5 bg-slate-50 border rounded-xl focus-within:ring-2 focus-within:ring-indigo-600/10 focus-within:border-indigo-600 transition-all cursor-pointer ${
+                    isCalendarOpen && activeCalendarField === 'checkOut' ? 'border-indigo-600 ring-2 ring-indigo-600/10' : 'border-slate-200'
+                  }`}
+                >
                   <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">{language === 'en' ? 'Check Out' : 'Check Out'}</label>
                   <input 
-                    type="date" 
+                    type="text" 
                     value={endDate} 
-                    onChange={e => setEndDate(e.target.value)} 
+                    placeholder="YYYY-MM-DD"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setEndDate(val);
+                      if (val.length >= 10) {
+                        handleSelectEndDate(val);
+                      }
+                    }}
+                    onBlur={e => {
+                      const val = e.target.value;
+                      const parsed = new Date(val);
+                      const checkinDate = new Date(startDate);
+                      if (isNaN(parsed.getTime()) || parsed <= checkinDate || val.length < 10) {
+                        const nextDate = new Date(checkinDate);
+                        nextDate.setDate(nextDate.getDate() + 1);
+                        setEndDate(formatLocalDate(nextDate));
+                      } else {
+                        handleSelectEndDate(val);
+                      }
+                    }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setActiveCalendarField('checkOut');
+                      setIsCalendarOpen(true);
+                    }}
                     className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer" 
                   />
                 </div>
               </div>
+
+              {/* Validation Error Message */}
+              {validationError && (
+                <div className="bg-rose-50 border border-rose-150 text-rose-700 rounded-xl p-2.5 text-[11px] font-semibold flex items-center gap-2 animate-in fade-in duration-200">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>{validationError}</span>
+                </div>
+              )}
+
+              {/* Custom Dropdown Calendar */}
+              {isCalendarOpen && (
+                <CalendarDatePicker
+                  startDate={startDate}
+                  endDate={endDate}
+                  onSelectStartDate={handleSelectDate}
+                  onSelectEndDate={handleSelectEndDate}
+                  language={language}
+                  activeField={activeCalendarField}
+                  setActiveField={setActiveCalendarField}
+                  onClose={() => setIsCalendarOpen(false)}
+                />
+              )}
 
               <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-600/10 focus-within:border-indigo-600 transition-all">
                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">{language === 'en' ? 'Guests' : 'Tamu'}</label>

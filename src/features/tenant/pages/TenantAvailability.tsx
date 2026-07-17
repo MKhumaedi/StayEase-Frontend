@@ -941,7 +941,7 @@ export default function TenantAvailability() {
                         Clear All
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto scrollbar-none">
+                    <div className="flex flex-wrap gap-1 max-h-25 overflow-y-auto scrollbar-none">
                       {selectedDates.map(d => (
                         <span key={d} className="text-[9px] font-mono font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md flex items-center gap-1">
                           {d}

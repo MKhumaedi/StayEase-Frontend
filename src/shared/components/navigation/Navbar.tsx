@@ -1731,7 +1731,7 @@ export default function Navbar({
             )}
 
             {/* Email and Password Form */}
-            <div className="flex flex-col gap-2">
+            {/* <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={handleGoogleLogin}
@@ -1754,13 +1754,13 @@ export default function Navbar({
                 <Apple className="w-4 h-4 text-slate-400" />
                 Continue with Apple
               </button>
-            </div>
+            </div> */}
 
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-100"></div>
-              <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
-              <div className="flex-grow border-t border-slate-100"></div>
-            </div>
+            {/* <div className="relative flex py-1 items-center">
+              <div className="grow border-t border-slate-100"></div>
+              <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
+              <div className="grow border-t border-slate-100"></div>
+            </div> */}
 
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
               
@@ -1912,7 +1912,7 @@ export default function Navbar({
             )}
 
             {/* OAuth Buttons */}
-            <div className="flex flex-col gap-2">
+            {/* <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={handleGoogleLogin}
@@ -1935,13 +1935,13 @@ export default function Navbar({
                 <Apple className="w-4 h-4 text-slate-400" />
                 Continue with Apple
               </button>
-            </div>
+            </div> */}
 
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-100"></div>
-              <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
-              <div className="flex-grow border-t border-slate-100"></div>
-            </div>
+            {/* <div className="relative flex py-1 items-center">
+              <div className="grow border-t border-slate-100"></div>
+              <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
+              <div className="grow border-t border-slate-100"></div>
+            </div> */}
 
             {/* Form */}
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">

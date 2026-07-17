@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useLanguage } from '../../../shared/i18n';
 import { formatWithSettings } from '../../../shared/services/dateService';
@@ -20,7 +20,8 @@ import {
   Filter,
   RotateCcw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -55,12 +56,9 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
   const [scannerError, setScannerError] = useState('');
 
   // Enhanced Filter & Pagination States
-  const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
-  const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
-
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(todayStr);
-  const [status, setStatus] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [status, setStatus] = useState('WAITING_CHECKIN');
   const [propertyId, setPropertyId] = useState('ALL');
   const [properties, setProperties] = useState<any[]>([]);
   const [page, setPage] = useState(1);
@@ -69,8 +67,9 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
 
   // Load bookings from Server-side
   const loadBookings = () => {
+    if (!token) return;
     setLoading(true);
-    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const authHeader: HeadersInit = { 'Authorization': `Bearer ${token}` };
     
     const queryParams = new URLSearchParams();
     queryParams.set('page', page.toString());
@@ -84,7 +83,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     if (searchQuery) queryParams.set('search', searchQuery);
 
     fetch(`/api/bookings?${queryParams.toString()}`, { headers: authHeader })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Network response error');
+        return res.json();
+      })
       .then(data => {
         setBookings(data.data || []);
         setTotal(data.total || 0);
@@ -98,7 +100,8 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
 
   // Fetch properties for dropdown on mount
   useEffect(() => {
-    const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!token) return;
+    const authHeader: HeadersInit = { 'Authorization': `Bearer ${token}` };
     fetch('/api/properties?byTenant=true', { headers: authHeader })
       .then(res => res.json())
       .then(data => {
@@ -152,9 +155,9 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
   };
 
   const handleResetFilters = () => {
-    setStartDate(todayStr);
-    setEndDate(todayStr);
-    setStatus('ALL');
+    setStartDate('');
+    setEndDate('');
+    setStatus('WAITING_CHECKIN');
     setPropertyId('ALL');
     setSearchQuery('');
     setPage(1);
@@ -180,7 +183,6 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     }
   }, [errorToast]);
 
-  // Clean stop of camera on unmount or drawer close
   const closeScanner = async () => {
     if (scannerInstance) {
       try {
@@ -201,17 +203,14 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     isValidatingRef.current = false;
   };
 
-  // Trigger permission check and initiate device camera scan
   const startCameraScanning = async () => {
     setQrFileError('');
     setScannerError('');
     setScannedBookingData(null);
     try {
-      // Prompt user using native mediaDevices API
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }
       });
-      // Permission granted! Release stream tracks so they are free for html5-qrcode
       stream.getTracks().forEach(track => track.stop());
       setPermissionState('granted');
     } catch (err: any) {
@@ -221,77 +220,51 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     }
   };
 
-  // Fetch from /api/bookings/code/:code and run strict validation checks
   const validateAndShowBooking = async (codeStr: string) => {
-    // 1. Decode URL if needed
     let decoded = codeStr;
-    try {
-      decoded = decodeURIComponent(codeStr);
-    } catch (e) {
-      console.error("[QR Scanner] URL decode failed, using original:", e);
-    }
+    try { decoded = decodeURIComponent(codeStr); } catch (e) {}
 
-    // 2. Clean input and remove control characters
     const cleaned = decoded.trim()
       .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "")
       .replace(/\r?\n|\r/g, "");
 
     let extractedCode = '';
 
-    // Robust extraction: Check if it is a JSON payload first (with any case for keys)
     if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
       try {
         const parsed = JSON.parse(cleaned);
         if (parsed && typeof parsed === 'object') {
-          // Check for key case-insensitively or standard keys
           const keys = Object.keys(parsed);
           const bkCodeKey = keys.find(k => k.toLowerCase() === 'bookingcode');
           const codeKey = keys.find(k => k.toLowerCase() === 'code');
           
-          if (bkCodeKey) {
-            extractedCode = String(parsed[bkCodeKey]);
-          } else if (codeKey) {
-            extractedCode = String(parsed[codeKey]);
-          }
+          if (bkCodeKey) extractedCode = String(parsed[bkCodeKey]);
+          else if (codeKey) extractedCode = String(parsed[codeKey]);
         }
-      } catch (jsonErr) {
-        console.error("[QR Scanner] JSON parsing failed in extractor:", jsonErr);
-      }
+      } catch (jsonErr) {}
     }
 
-    // URL path matching format
     if (!extractedCode) {
       const urlMatch = cleaned.match(/\/checkin\/([A-Za-z0-9-]+)/i) || 
-                       cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
-                       cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
-      if (urlMatch && urlMatch[1]) {
-        extractedCode = urlMatch[1];
-      }
+                      cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
+                      cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
+      if (urlMatch && urlMatch[1]) extractedCode = urlMatch[1];
     }
 
-    // Invoice multi-line matching
     if (!extractedCode) {
       const lineMatch = cleaned.match(/Booking Code:\s*([A-Za-z0-9-]+)/i);
-      if (lineMatch && lineMatch[1]) {
-        extractedCode = lineMatch[1];
-      }
+      if (lineMatch && lineMatch[1]) extractedCode = lineMatch[1];
     }
 
-    // Pattern-based fallback (SE-XXXX or BK-XXXX)
     if (!extractedCode) {
       const genericMatch = cleaned.match(/(SE-[A-Za-z0-9-]+)/i) || 
-                           cleaned.match(/(BK-[A-Za-z0-9-]+)/i) || 
-                           cleaned.match(/(SE-\d+)/i) ||
-                           cleaned.match(/(BK-\d+)/i);
-      if (genericMatch && genericMatch[1]) {
-        extractedCode = genericMatch[1];
-      }
+                          cleaned.match(/(BK-[A-Za-z0-9-]+)/i) || 
+                          cleaned.match(/(SE-\d+)/i) ||
+                          cleaned.match(/(BK-\d+)/i);
+      if (genericMatch && genericMatch[1]) extractedCode = genericMatch[1];
     }
 
-    // Ultimate fallback to raw input
-    if (!extractedCode) {
-      extractedCode = cleaned;
-    }
+    if (!extractedCode) extractedCode = cleaned;
 
     const normalizedCode = extractedCode.trim().toUpperCase();
 
@@ -305,68 +278,36 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     isValidatingRef.current = true;
 
     try {
-      // Construct the exact expected JSON payload wrapper: { "bookingCode": "SE-9738" }
-      const payload = {
-        bookingCode: normalizedCode
-      };
-      const payloadStr = JSON.stringify(payload);
-      const formattedCode = encodeURIComponent(payloadStr);
-
-      // === TEMPORARY DEBUG LOGS START ===
-      console.log("[FRONTEND DEBUG] API URL:", `/api/bookings/code/${formattedCode}`);
-      console.log("[FRONTEND DEBUG] Token existence:", token ? "Exists (not null)" : "Missing (null/undefined)");
-      console.log("[FRONTEND DEBUG] Headers:", {
-        'Authorization': `Bearer ${token ? token.substring(0, 10) + '...' : 'none'}`
-      });
-      console.log("[FRONTEND DEBUG] Payload:", payload);
-      // === TEMPORARY DEBUG LOGS END ===
+      const payload = { bookingCode: normalizedCode };
+      const formattedCode = encodeURIComponent(JSON.stringify(payload));
 
       const response = await fetch(`/api/bookings/code/${formattedCode}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      // === TEMPORARY DEBUG LOGS START ===
-      console.log("[FRONTEND DEBUG] Response status:", response.status);
-      // === TEMPORARY DEBUG LOGS END ===
 
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error(language === 'en' ? "Booking QR not recognized." : "Pemesanan tidak ditemukan atau Kode QR tidak dikenal.");
         }
         const data = await response.json();
-        // === TEMPORARY DEBUG LOGS START ===
-        console.log("[DEBUG LOG] Response body:", data);
-        // === TEMPORARY DEBUG LOGS END ===
         throw new Error(data.error || "Failed to validate booking");
       }
 
       const booking = await response.json();
-      // === TEMPORARY DEBUG LOGS START ===
-      console.log("[DEBUG LOG] Response body:", booking);
-      // === TEMPORARY DEBUG LOGS END ===
 
-      // Check validation constraints
-      // Expired booking: AUTO_EXPIRED or if checkout date is passed
-      const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
-      const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
-      if (booking.status === 'AUTO_EXPIRED' || todayStr > booking.endDate) {
+      if (booking.status === 'AUTO_EXPIRED') {
         throw new Error(language === 'en' ? "Reservation already expired." : "Pemesanan sudah kedaluwarsa.");
       }
 
-      // Cancelled booking: CANCELLED
       if (booking.status === 'CANCELLED') {
         throw new Error(language === 'en' ? "Reservation has been cancelled." : "Pemesanan telah dibatalkan.");
       }
 
-      // Already checked-in: CHECKED_IN, CHECKED_OUT, COMPLETED
       if (booking.status === 'CHECKED_IN' || booking.status === 'CHECKED_OUT' || booking.status === 'COMPLETED') {
         throw new Error(language === 'en' ? "Guest already checked in." : "Tamu sudah melakukan check-in.");
       }
 
-      // Check other status: Must be CONFIRMED
-      if (booking.status !== 'CONFIRMED') {
+      if (booking.status !== 'CONFIRMED' && booking.status !== 'WAITING_CHECKIN') {
         throw new Error(
           language === 'en' 
             ? `Reservation is not ready for check-in. (Status: ${booking.status})` 
@@ -374,173 +315,88 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
         );
       }
 
-      // Date check: current date >= checkInDate (startDate)
-      if (todayStr < booking.startDate) {
-        throw new Error(
-          language === 'en'
-            ? `Reservation starts on ${booking.startDate}. Check-in is not allowed yet Today.`
-            : `Pemesanan dimulai tanggal ${booking.startDate}. Check-in belum diperbolehkan.`
-        );
-      }
-
-      // All checks passed! Play success vibration and show booking summary
       if (navigator.vibrate) {
-        try {
-          navigator.vibrate(200);
-        } catch (e) {}
+        try { navigator.vibrate(200); } catch (e) {}
       }
 
       setScannedBookingData(booking);
       
-      // Stop continuous scanning so camera turns off and user focuses on confirm actions
       if (scannerInstance && scannerInstance.isScanning) {
         await scannerInstance.stop();
       }
     } catch (err: any) {
       setQrFileError(err.message || (language === 'en' ? "Booking QR not recognized." : "Kode QR tidak dikenal."));
-      // Release lock on error
       isValidatingRef.current = false;
       if (scannerInstance && scannerInstance.isScanning) {
-        try {
-          scannerInstance.resume();
-        } catch (e) {
-          console.error("Error resuming scanner:", e);
-        }
+        try { scannerInstance.resume(); } catch (e) {}
       }
     } finally {
       setLoadingBookingDetails(false);
     }
   };
 
-  // Real-time callback from Html5Qrcode when scan detects decoded text
   const handleQrDetected = async (text: string) => {
-    if (isValidatingRef.current) {
-      console.log("[QR Scanner] Validation already in progress, ignoring duplicate scan.");
-      return;
-    }
-
+    if (isValidatingRef.current) return;
     isValidatingRef.current = true;
 
-    // === TEMPORARY DEBUG LOGS START ===
-    console.log("[DEBUG LOG] Raw decoded QR value:", text);
-    // === TEMPORARY DEBUG LOGS END ===
-
-    // Pause scanner during validation
     if (scannerInstance && scannerInstance.isScanning) {
-      try {
-        scannerInstance.pause(true);
-        console.log("[QR Scanner] Scanner paused successfully.");
-      } catch (e) {
-        console.error("[QR Scanner] Error pausing scanner:", e);
-      }
+      try { scannerInstance.pause(true); } catch (e) {}
     }
 
     try {
-      if (!text) {
-        throw new Error(language === 'en' ? "QR content is empty." : "Konten QR kosong.");
-      }
+      if (!text) throw new Error(language === 'en' ? "QR content is empty." : "Konten QR kosong.");
 
-      // Safe normalization: decode URL, remove invisible characters, extract booking code
       let decoded = text;
-      try {
-        decoded = decodeURIComponent(text);
-      } catch (e) {
-        console.error("[QR Scanner] URL decode failed, using original:", e);
-      }
+      try { decoded = decodeURIComponent(text); } catch (e) {}
 
       let cleaned = decoded.trim()
         .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "")
         .replace(/\r?\n|\r/g, " ");
 
       let code = '';
-
-      // Format A: JSON payload (supports inner JSON blocks)
       const jsonMatch = cleaned.match(/\{.*\}/);
       if (jsonMatch) {
         try {
           const payload = JSON.parse(jsonMatch[0]);
           if (payload && typeof payload === 'object') {
-            if (payload.bookingCode) {
-              code = payload.bookingCode;
-              console.log("[QR Scanner] Parsed JSON bookingCode:", code);
-            } else if (payload.code) {
-              code = payload.code;
-              console.log("[QR Scanner] Parsed JSON code:", code);
-            }
+            code = payload.bookingCode || payload.code || '';
           }
-        } catch (jsonErr) {
-          console.error("[QR Scanner] Failed to parse payload as JSON:", jsonErr);
-        }
+        } catch (jsonErr) {}
       }
 
-      // Format B: URL format (e.g. /checkin/SE-2795 or similar)
       if (!code) {
         const urlMatch = cleaned.match(/\/checkin\/([A-Za-z0-9-]+)/i) || 
-                         cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
-                         cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
-        if (urlMatch && urlMatch[1]) {
-          code = urlMatch[1];
-          console.log("[QR Scanner] Parsed URL path bookingCode:", code);
-        }
+                        cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
+                        cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
+        if (urlMatch && urlMatch[1]) code = urlMatch[1];
       }
 
-      // Format C: Plain booking code (e.g. SE-2795) or standard multi-line with "Booking Code: SE-XXXX"
       if (!code) {
         const lineMatch = cleaned.match(/Booking Code:\s*([A-Za-z0-9-]+)/i);
-        if (lineMatch && lineMatch[1]) {
-          code = lineMatch[1];
-          console.log("[QR Scanner] Parsed invoice multi-line bookingCode:", code);
-        }
+        if (lineMatch && lineMatch[1]) code = lineMatch[1];
       }
 
-      // Format D: raw check if it contains SE-XXXX
       if (!code) {
         const seMatch = cleaned.match(/(SE-[A-Za-z0-9-]+)/i) || cleaned.match(/(SE-\d+)/i);
-        if (seMatch && seMatch[1]) {
-          code = seMatch[1];
-          console.log("[QR Scanner] Parsed fallback SE-XXXX code:", code);
-        }
+        if (seMatch && seMatch[1]) code = seMatch[1];
       }
 
-      // Ultimate fallback
-      if (!code) {
-        code = cleaned;
-        console.log("[QR Scanner] Defaulting raw text as code:", code);
-      }
+      if (!code) code = cleaned;
 
-      // Normalize into a single uppercase bookingCode with letters, digits, and hyphens only
       const normalizedCode = code.trim().toUpperCase();
-      
-      // === TEMPORARY DEBUG LOGS START ===
-      console.log("[DEBUG LOG] Normalized booking code:", normalizedCode);
-      // === TEMPORARY DEBUG LOGS END ===
-
-      if (!normalizedCode) {
-        throw new Error(language === 'en' 
-          ? `Could not parse code from payload: "${text.substring(0, 100)}"` 
-          : `Tidak dapat mengurai kode dari payload: "${text.substring(0, 100)}"`);
-      }
+      if (!normalizedCode) throw new Error("Invalid payload format");
 
       await validateAndShowBooking(normalizedCode);
     } catch (err: any) {
-      console.error("[QR Scanner] Error processing QR payload:", err);
-      setQrFileError(err.message || (language === 'en' ? "Booking QR not recognized." : "Kode QR tidak dikenali."));
-      
-      // Release lock and resume scanning on error
+      setQrFileError(err.message || "Error parsing QR");
       isValidatingRef.current = false;
       if (scannerInstance && scannerInstance.isScanning) {
-        try {
-          scannerInstance.resume();
-          console.log("[QR Scanner] Scanner resumed after error.");
-        } catch (e) {
-          console.error("[QR Scanner] Error resuming scanner:", e);
-        }
+        try { scannerInstance.resume(); } catch (e) {}
       }
     }
   };
 
   useEffect(() => {
-    // If scanner modal is opened with granted camera, spawn continuous Html5Qrcode reader
     if (showScanner && permissionState === 'granted' && !scannedBookingData) {
       const qrcode = new Html5Qrcode("qr-scanner-view-element");
       setScannerInstance(qrcode);
@@ -556,14 +412,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
             },
             aspectRatio: 1.0
           },
-          (decodedText) => {
-            handleQrDetected(decodedText);
-          },
-          () => {
-            // redundant/verbose failure scanner logs, skip
-          }
+          (decodedText) => { handleQrDetected(decodedText); },
+          () => {}
         ).catch(err => {
-          console.error("Html5Qrcode scanner failed to start:", err);
+          console.error("Scanner failed to start:", err);
           setScannerError(language === 'en' ? "Failed to establish camera stream." : "Gagal membangun aliran kamera.");
         });
       }, 300);
@@ -571,15 +423,12 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
       return () => {
         clearTimeout(delayTimer);
         if (qrcode.isScanning) {
-          qrcode.stop().catch(e => console.error("Error on unmounting stop:", e));
+          qrcode.stop().catch(e => console.error(e));
         }
       };
     }
   }, [showScanner, permissionState, scannedBookingData]);
 
-  const filteredBookings = bookings;
-
-  // Check-In handler
   const handleConfirmCheckIn = async (bookingId: string) => {
     try {
       const response = await fetch(`/api/bookings/${bookingId}/check-in`, {
@@ -596,17 +445,13 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
 
       const targetBooking = bookings.find(b => b.id === bookingId) || checkInModalBooking || scannedBookingData;
 
-      // Reload bookings and close modals
       loadBookings();
       setCheckInModalBooking(null);
       setScannedBookingData(null);
       closeScanner();
 
-      // Trigger modern success toast
       const timeStr = new Date().toLocaleTimeString(language === 'en' ? 'en-US' : 'id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
       });
       setSuccessToast({
         bookingCode: targetBooking?.bookingCode || 'N/A',
@@ -615,7 +460,6 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
         time: timeStr
       });
 
-      // Synchronize all operational dashboards instantly
       window.dispatchEvent(new CustomEvent('stayease:refresh_bookings'));
       window.dispatchEvent(new CustomEvent('stayease:refresh_notifications'));
 
@@ -624,31 +468,26 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     }
   };
 
-  // Simulate scanning code or uploading scanned result
   const handleSimulateScan = () => {
-    // Let tenant choose from any active confirmed booking to simulate scan
-    const pool = bookings.filter(b => b.status === 'CONFIRMED');
+    const pool = bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'WAITING_CHECKIN');
     if (pool.length === 0) {
-      setQrFileError(language === 'en' ? 'No active CONFIRMED bookings found to simulate. Create parts first.' : 'Tidak ada reservasi CONFIRMED aktif untuk disimulasikan.');
+      setQrFileError(language === 'en' ? 'No active arrivals found to simulate.' : 'Tidak ada reservasi aktif untuk disimulasikan.');
       return;
     }
-    // Pick the first match or matching manualCode
     let match = pool[0];
     if (manualCode) {
       const found = pool.find(b => b.bookingCode.toUpperCase() === manualCode.toUpperCase().trim());
-      if (found) {
-        match = found;
-      } else {
-        setQrFileError(language === 'en' ? 'Invalid code typed. Must be an active CONFIRMED booking code.' : 'Kode salah. Harus kode reservasi CONFIRMED aktif.');
+      if (found) match = found;
+      else {
+        setQrFileError(language === 'en' ? 'Invalid code typed.' : 'Kode salah.');
         return;
       }
     }
-
     validateAndShowBooking(match.bookingCode);
   };
 
   const totalPages = Math.ceil(total / limit) || 1;
-  const startEntry = (page - 1) * limit + 1;
+  const startEntry = total === 0 ? 0 : (page - 1) * limit + 1;
   const endEntry = Math.min(page * limit, total);
 
   return (
@@ -659,16 +498,15 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
         <div>
           <h2 className="text-xl font-bold text-indigo-950 flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-indigo-600" />
-            {language === 'en' ? "Today's Guest Check-Ins" : 'Check-In Hari Ini'}
+            {language === 'en' ? "Guest Arrivals Ledger" : 'Daftar Kedatangan Tamu'}
           </h2>
           <p className="text-xs text-slate-500">
             {language === 'en' 
-              ? 'Displaying confirmed guest arrivals scheduled for today' 
-              : 'Menampilkan kedatangan tamu terkonfirmasi yang dijadwalkan hari ini'}
+              ? 'Displaying confirmed guest arrivals scheduled for processing' 
+              : 'Menampilkan kedatangan tamu terkonfirmasi yang dijadwalkan untuk diproses'}
           </p>
         </div>
 
-        {/* QR Scanning & Manual buttons */}
         <button
           onClick={() => {
             setShowScanner(true);
@@ -677,17 +515,17 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
             setManualCode('');
             startCameraScanning();
           }}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer border-0"
         >
           <QrCode className="w-4 h-4" />
           <span>{language === 'en' ? 'Scan Guest QR Code' : 'Pindai Kode QR Tamu'}</span>
         </button>
       </div>
 
-      {/* Compact Filter Toolbar */}
+      {/* Filter Toolbar */}
       <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-2xl flex flex-col gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-          {/* Start Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3.5 text-xs">
+          
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Calendar className="w-3 h-3 text-indigo-500" />
@@ -697,11 +535,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
               type="date"
               value={startDate}
               onChange={(e) => handleStartDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
-          {/* End Date */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Calendar className="w-3 h-3 text-indigo-500" />
@@ -711,11 +548,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
               type="date"
               value={endDate}
               onChange={(e) => handleEndDateChange(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
-          {/* Status Dropdown */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Filter className="w-3 h-3 text-indigo-500" />
@@ -724,17 +560,15 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
             <select
               value={status}
               onChange={(e) => handleStatusChange(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
             >
               <option value="WAITING_CHECKIN">{language === 'en' ? 'Waiting Check-In' : 'Menunggu Check-In'}</option>
               <option value="CHECKED_IN">{language === 'en' ? 'Checked-In' : 'Sudah Masuk'}</option>
-              <option value="LATE_CHECKIN">{language === 'en' ? 'No Show' : 'No Show'}</option>
               <option value="CANCELLED">{language === 'en' ? 'Cancelled' : 'Dibatalkan'}</option>
               <option value="ALL">{language === 'en' ? 'All Status' : 'Semua Status'}</option>
             </select>
           </div>
 
-          {/* Property Dropdown */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <MapPin className="w-3 h-3 text-indigo-500" />
@@ -743,18 +577,15 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
             <select
               value={propertyId}
               onChange={(e) => handlePropertyChange(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
             >
               <option value="ALL">{language === 'en' ? 'All Properties' : 'Semua Properti'}</option>
               {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Search Input */}
           <div className="flex flex-col gap-1.5 sm:col-span-2 md:col-span-4 lg:col-span-1">
             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Search className="w-3 h-3 text-indigo-500" />
@@ -766,12 +597,12 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                 placeholder={language === 'en' ? 'Guest, Code...' : 'Tamu, Kode...'}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 pr-8"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 pr-8"
               />
               {searchQuery && (
                 <button
                   onClick={() => handleSearchChange('')}
-                  className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -780,46 +611,46 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
           </div>
         </div>
 
-        {/* Action controls (Reset filter) */}
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
           <div className="text-[11px] text-slate-500 font-semibold">
-            {language === 'en' 
-              ? `Found ${total} matching check-ins` 
-              : `Ditemukan ${total} check-in yang sesuai`}
+            {language === 'en' ? `Found ${total} matching entries` : `Ditemukan ${total} entri yang sesuai`}
           </div>
           <button
             onClick={handleResetFilters}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-150 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer border-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>{language === 'en' ? 'Reset Filters' : 'Reset Filter'}</span>
+            <span>{language === 'en' ? 'Clear Filters' : 'Bersihkan Filter'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Table */}
+      {/* Main Table Content */}
       {loading ? (
-        <div className="text-center py-10 text-slate-500 text-xs">{language === 'en' ? 'Loading check-ins...' : 'Memuat check-in...'}</div>
-      ) : filteredBookings.length === 0 ? (
-        <div className="border border-dashed border-slate-200 rounded-2xl p-10 text-center">
+        <div className="flex justify-center items-center py-20 text-indigo-900 gap-2 font-bold text-xs">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>{language === 'en' ? 'Loading check-ins dynamic ledger...' : 'Memuat data kedatangan dinamis...'}</span>
+        </div>
+      ) : bookings.length === 0 ? (
+        <div className="border border-dashed border-slate-200 bg-white rounded-2xl p-14 text-center">
           <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-6 h-6 text-slate-400" />
           </div>
-          <p className="text-sm font-semibold text-slate-700">
+          <p className="text-sm font-bold text-slate-700">
             {language === 'en' ? 'No Check-Ins Found' : 'Tidak Ada Check-In Ditemukan'}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
             {language === 'en' 
-              ? 'Try modifying your date range or filters to find specific guest check-ins.' 
-              : 'Coba ubah rentang tanggal atau filter Anda untuk menemukan check-in tamu tertentu.'}
+              ? 'Try modifying your search query or filters to find specific guest check-ins.' 
+              : 'Coba ubah kata kunci pencarian atau filter Anda untuk menemukan check-in tamu tertentu.'}
           </p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-slate-150 rounded-xl bg-white shadow-3xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-400 uppercase tracking-wider font-extrabold text-[10px]">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase tracking-wider font-black text-[9px]">
                   <th className="py-3 px-4">{language === 'en' ? 'Guest Name' : 'Nama Tamu'}</th>
                   <th className="py-3 px-4">{language === 'en' ? 'Booking Code' : 'Kode Booking'}</th>
                   <th className="py-3 px-4">{language === 'en' ? 'Property & Room' : 'Properti & Kamar'}</th>
@@ -827,17 +658,17 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                   <th className="py-3 px-4">{language === 'en' ? 'Arrival Time' : 'Waktu Datang'}</th>
                   <th className="py-3 px-4">{language === 'en' ? 'Booking Status' : 'Status Booking'}</th>
                   <th className="py-3 px-4">{language === 'en' ? 'Phone' : 'Telepon'}</th>
-                  <th className="py-3 px-4 text-right">{language === 'en' ? 'Actions' : 'Aksi'}</th>
+                  <th className="py-3 px-4 text-right w-28">{language === 'en' ? 'Actions' : 'Aksi'}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-slate-800">{b.guestName}</td>
+              <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                {bookings.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-55/40 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-slate-900">{b.guestName}</td>
                     <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">{b.bookingCode}</td>
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-700">{b.property?.name ?? 'N/A'}</div>
-                      <div className="text-[10px] text-slate-400 font-medium">Room: {b.room?.name ?? 'General'}</div>
+                      <div className="font-bold text-slate-700">{b.property?.name ?? 'N/A'}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Room: {b.room?.name ?? 'General'}</div>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">{b.startDate}</td>
                     <td className="py-3.5 px-4">
@@ -848,8 +679,8 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                             <span>{new Date(b.checkedInAt).toLocaleTimeString(language === 'en' ? 'en-US' : 'id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                           {b.checkedInBy && (
-                            <span className="text-[10px] text-slate-400 font-semibold truncate max-w-[120px]">
-                              By: {b.checkedInBy.length > 8 ? `${b.checkedInBy.substring(0, 8)}...` : b.checkedInBy}
+                            <span className="text-[10px] text-slate-400 font-normal truncate max-w-[120px]">
+                              By: {b.checkedInBy}
                             </span>
                           )}
                         </div>
@@ -861,33 +692,32 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                       )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        b.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' :
-                        b.status === 'CHECKED_IN' ? 'bg-blue-50 text-blue-700' :
-                        b.status === 'CHECKED_OUT' ? 'bg-indigo-50 text-indigo-700' :
-                        b.status === 'CANCELLED' ? 'bg-red-50 text-red-700' :
-                        'bg-slate-50 text-slate-655'
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                        b.status === 'CONFIRMED' || b.status === 'WAITING_CHECKIN' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                        b.status === 'CHECKED_IN' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                        b.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border border-red-100' :
+                        'bg-slate-50 text-slate-600 border border-slate-100'
                       }`}>
                         <CheckCircle2 className="w-3 h-3" />
-                        {b.status}
+                        {b.status.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-500">{b.guestPhone}</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-500 font-normal">{b.guestPhone}</td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex justify-end gap-1.5">
                         <button
                           onClick={() => setSelectedBooking(b)}
-                          className="p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg cursor-pointer"
+                          className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg cursor-pointer border-0 bg-transparent"
                           title={language === 'en' ? 'View Details' : 'Lihat Detail'}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {b.status === 'CONFIRMED' && (
+                        {(b.status === 'CONFIRMED' || b.status === 'WAITING_CHECKIN') && (
                           <button
                             onClick={() => setCheckInModalBooking(b)}
-                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                            className="px-2.5 py-1 bg-indigo-900 hover:bg-indigo-950 text-white rounded-md text-[10px] font-black tracking-wide border-0 cursor-pointer shadow-3xs"
                           >
-                            {language === 'en' ? 'Check-In' : 'Check-In'}
+                            Check-In
                           </button>
                         )}
                       </div>
@@ -898,10 +728,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
             </table>
           </div>
 
-          {/* Server-Side Pagination Controls */}
+          {/* Pagination Block */}
           {total > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100 text-xs">
-              <div className="text-slate-500 font-semibold">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 text-xs">
+              <div className="text-slate-500 font-bold">
                 {language === 'en'
                   ? `Showing ${startEntry} to ${endEntry} of ${total} entries`
                   : `Menampilkan ${startEntry} sampai ${endEntry} dari ${total} entri`}
@@ -911,8 +741,7 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                 <button
                   onClick={() => handlePageChange(Math.max(1, page - 1))}
                   disabled={page === 1}
-                  className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-650 disabled:opacity-40 disabled:hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-                  title={language === 'en' ? 'Previous Page' : 'Halaman Sebelumnya'}
+                  className="p-2 bg-white hover:bg-slate-50 text-slate-655 disabled:opacity-40 disabled:hover:bg-white rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -937,8 +766,7 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                 <button
                   onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
-                  className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-650 disabled:opacity-40 disabled:hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-                  title={language === 'en' ? 'Next Page' : 'Halaman Berikutnya'}
+                  className="p-2 bg-white hover:bg-slate-50 text-slate-655 disabled:opacity-40 disabled:hover:bg-white rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -948,16 +776,15 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
         </div>
       )}
 
-      {/* QR Code Scanner Drawer/Modal */}
+      {/* QR Code Scanner Overlay */}
       {showScanner && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-955 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative flex flex-col max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative flex flex-col max-h-[90vh] overflow-y-auto">
             
-            {/* Modal Header */}
-            <div className="p-6 border-b border-slate-850 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/25">
-                  <QrCode className="w-5 h-5 text-indigo-405" />
+                  <QrCode className="w-5 h-5 text-indigo-400" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-100">
@@ -970,176 +797,126 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
               </div>
               <button 
                 onClick={closeScanner}
-                className="w-8 h-8 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-205 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 flex items-center justify-center transition-colors border-0 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body Container */}
-            <div className="p-6 flex flex-col gap-5">
+            <div className="p-5 flex flex-col gap-5">
               
-              {/* Camera view area */}
               {!scannedBookingData && (
                 <div className="relative aspect-square w-full bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden flex flex-col items-center justify-center">
                   
-                  {/* Camera prompt / checking permission */}
                   {permissionState === 'prompt' && !scannerError && (
                     <div className="text-center p-6 flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 rounded-full border-4 border-indigo-500/30 border-t-indigo-400 animate-spin" />
-                      <p className="text-xs font-semibold text-slate-350">
+                      <div className="w-8 h-8 rounded-full border-4 border-indigo-500/30 border-t-indigo-400 animate-spin" />
+                      <p className="text-xs font-semibold text-slate-300">
                         {language === 'en' ? 'Requesting Device Camera Permission...' : 'Meminta Izin Kamera Perangkat...'}
-                      </p>
-                      <p className="text-[10px] text-slate-500 max-w-xs text-center leading-relaxed">
-                        {language === 'en' 
-                          ? 'Please accept the camera prompt in your browser to activate scanning.' 
-                          : 'Harap setujui permintaan kamera untuk mengaktifkan pemindaian.'}
                       </p>
                     </div>
                   )}
 
-                  {/* Camera Access Denied */}
                   {(permissionState === 'denied' || scannerError) && (
                     <div className="text-center p-6 flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/25">
-                        <AlertCircle className="w-6 h-6 text-red-400" />
-                      </div>
+                      <AlertCircle className="w-6 h-6 text-red-400" />
                       <p className="text-xs font-bold text-red-200">
                         {language === 'en' ? 'Camera Access Required' : 'Akses Kamera Diperlukan'}
                       </p>
-                      <p className="text-[10px] text-slate-400 max-w-xs leading-relaxed">
-                        {scannerError || (language === 'en' 
-                          ? "Camera access is required to scan guest QR codes." 
-                          : "Akses kamera diperlukan untuk memindai kode QR tamu.")}
-                      </p>
                       <button
                         onClick={startCameraScanning}
-                        className="mt-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-600/15"
+                        className="mt-1 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold border-0 cursor-pointer"
                       >
                         {language === 'en' ? 'Try Again' : 'Coba Lagi'}
                       </button>
                     </div>
                   )}
 
-                  {/* Live Viewport with Target ID for Html5Qrcode */}
                   {permissionState === 'granted' && !scannerError && (
                     <>
-                      {/* Html5Qrcode target hook */}
                       <div id="qr-scanner-view-element" className="w-full h-full object-cover relative z-10" />
                       
-                      {/* Custom scanning viewfinder overlay */}
                       <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-6">
-                        {/* corners indicators */}
                         <div className="flex justify-between">
                           <div className="w-6 h-6 border-t-2 border-l-2 border-indigo-400 rounded-tl-md" />
                           <div className="w-6 h-6 border-t-2 border-r-2 border-indigo-400 rounded-tr-md" />
                         </div>
-                        
-                        {/* laser scan bounce animation */}
                         <div className="relative w-full h-1/2 flex items-center justify-center">
                           <div className="absolute inset-x-0 w-full h-0.5 bg-indigo-500 shadow-[0_0_12px_rgba(129,140,248,0.8)] animate-bounce" style={{ animationDuration: '4.5s' }} />
-                          <Scan className="w-10 h-10 text-indigo-400/40" />
+                          <Scan className="w-8 h-8 text-indigo-400/30" />
                         </div>
-
                         <div className="flex justify-between">
                           <div className="w-6 h-6 border-b-2 border-l-2 border-indigo-400 rounded-bl-md" />
                           <div className="w-6 h-6 border-b-2 border-r-2 border-indigo-400 rounded-br-md" />
                         </div>
                       </div>
 
-                      {/* Decoded/validating loading overlay */}
                       {loadingBookingDetails && (
                         <div className="absolute inset-0 z-35 bg-slate-950/80 flex flex-col items-center justify-center gap-2">
-                          <div className="w-10 h-10 rounded-full border-4 border-indigo-500/10 border-t-indigo-400 animate-spin" />
-                          <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest animate-pulse">
+                          <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+                          <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
                             {language === 'en' ? 'Validating booking...' : 'Memvalidasi booking...'}
                           </span>
                         </div>
                       )}
-
-                      <div className="absolute bottom-3 inset-x-0 text-center z-20">
-                        <span className="text-[10px] text-indigo-300 font-bold bg-slate-900/85 px-3 py-1 rounded-full border border-indigo-500/15 tracking-wider uppercase">
-                          {language === 'en' ? 'Real Camera Live' : 'Kamera Perangkat Aktif'}
-                        </span>
-                      </div>
                     </>
                   )}
-
                 </div>
               )}
 
-              {/* Error logs inside the scan viewport */}
               {qrFileError && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex gap-2.5 items-start text-xs text-red-300">
                   <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-bold block text-red-200">
-                      {language === 'en' ? 'Validation Error' : 'Kesalahan Validasi'}
-                    </span>
-                    <p className="mt-0.5 leading-relaxed">{qrFileError}</p>
+                    <p className="leading-relaxed">{qrFileError}</p>
                   </div>
                 </div>
               )}
 
-              {/* Show Scanned Booking Summary displaying details and action buttons */}
               {scannedBookingData && (
-                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col gap-4">
-                  <div className="flex justify-between items-start pb-3 border-b border-slate-850">
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-4">
+                  <div className="flex justify-between items-start pb-2.5 border-b border-slate-800">
                     <div>
-                      <span className="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">
-                        {language === 'en' ? "Verified Reservation Summary" : 'Ringkasan Reservasi Terverifikasi'}
-                      </span>
+                      <span className="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">Verified Arrival Profile</span>
                       <h4 className="font-bold text-base text-slate-200 mt-0.5">{scannedBookingData.guestName}</h4>
                     </div>
-                    <span className="font-mono font-bold text-indigo-405 text-xs bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
+                    <span className="font-mono font-bold text-indigo-400 text-xs bg-indigo-500/10 px-2.5 py-1 rounded-lg">
                       {scannedBookingData.bookingCode}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                  <div className="grid grid-cols-2 gap-3 text-xs text-slate-400">
                     <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Property</span>
-                      <strong className="block text-slate-200 truncate mt-0.5 font-bold">{scannedBookingData.property?.name ?? 'N/A'}</strong>
+                      <span className="block text-[9px] text-slate-500 font-semibold uppercase">Property</span>
+                      <strong className="block text-slate-200 truncate font-bold">{scannedBookingData.property?.name ?? 'N/A'}</strong>
                     </div>
                     <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Room Specified</span>
-                      <strong className="block text-slate-200 truncate mt-0.5 font-bold">{scannedBookingData.room?.name ?? 'General'}</strong>
+                      <span className="block text-[9px] text-slate-500 font-semibold uppercase">Room Spec</span>
+                      <strong className="block text-slate-200 truncate font-bold">{scannedBookingData.room?.name ?? 'General'}</strong>
                     </div>
                     <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Check-In Date</span>
-                      <strong className="block text-slate-200 mt-0.5 font-semibold">{scannedBookingData.startDate}</strong>
+                      <span className="block text-[9px] text-slate-500 font-semibold uppercase">Duration</span>
+                      <strong className="block text-slate-300 font-semibold">{scannedBookingData.startDate} ~ {scannedBookingData.endDate}</strong>
                     </div>
                     <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Check-Out Date</span>
-                      <strong className="block text-slate-200 mt-0.5 font-semibold">{scannedBookingData.endDate}</strong>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Guest Capacity Limit</span>
-                      <strong className="block text-indigo-300 mt-0.5 font-bold">
-                        {scannedBookingData.room?.capacity ?? 2} Guests Max
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="block text-[9px] text-slate-450 font-semibold uppercase tracking-wider">Payment Status</span>
-                      <strong className="block text-emerald-400 mt-0.5 font-bold">
-                        Paid ({scannedBookingData.status})
-                      </strong>
+                      <span className="block text-[9px] text-slate-500 font-semibold uppercase">Status</span>
+                      <strong className="block text-emerald-400 font-bold">{scannedBookingData.status}</strong>
                     </div>
                   </div>
 
-                  <div className="flex gap-2.5 pt-3 border-t border-slate-850">
+                  <div className="flex gap-2.5 pt-2">
                     <button
                       onClick={() => {
                         setScannedBookingData(null);
                         isValidatingRef.current = false;
                       }}
-                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-755 text-slate-300 text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border-0 cursor-pointer transition-colors"
                     >
-                      {language === 'en' ? 'Cancel / Scan Again' : 'Batal / Pindai Lagi'}
+                      {language === 'en' ? 'Scan Again' : 'Pindai Lagi'}
                     </button>
                     <button
                       onClick={() => handleConfirmCheckIn(scannedBookingData.id)}
-                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors shadow-md shadow-indigo-600/15"
+                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer transition-colors"
                     >
                       {language === 'en' ? 'Confirm Check-In' : 'Konfirmasi Check-In'}
                     </button>
@@ -1147,54 +924,42 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
                 </div>
               )}
 
-              {/* Fallback Option: Manual input of reservation code */}
               {!scannedBookingData && (
-                <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col gap-3">
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-2">
                   <span className="text-[10px] uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                    {language === 'en' ? 'Manual Booking Code Fallback' : 'Input Manual Kode Booking'}
+                    {language === 'en' ? 'Manual Booking Code Entry' : 'Input Manual Kode Booking'}
                   </span>
-                  <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">
-                    {language === 'en'
-                      ? 'Type guests booking code to search and check-in without device camera access.'
-                      : 'Ketik kode booking tamu untuk memverifikasi dan memproses check-in tanpa akses kamera.'}
-                  </p>
                   <div className="flex gap-2 mt-1">
                     <input
                       type="text"
                       placeholder="e.g. SE-1024"
                       value={manualCode}
                       onChange={(e) => setManualCode(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold uppercase flex-1 outline-none focus:border-indigo-500/50"
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold uppercase flex-1 outline-hidden focus:border-indigo-500/50"
                     />
                     <button
                       onClick={() => validateAndShowBooking(manualCode)}
-                      className="px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600 border border-indigo-500/20 hover:border-indigo-550 text-indigo-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold border-0 cursor-pointer"
                       disabled={loadingBookingDetails}
                     >
-                      {language === 'en' ? 'Validate Booking' : 'Validasi Booking'}
+                      {language === 'en' ? 'Validate' : 'Validasi'}
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Pre-existing Sandbox simulator section */}
               {!scannedBookingData && (
-                <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-850 text-[10px] text-slate-400 flex flex-col gap-2 leading-relaxed">
-                  <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-amber-500/90">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                    {language === 'en' ? 'Sandbox Simulation Utility' : 'Simulasi Pengujian Sandbox'}
+                <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-850 text-[10px] text-slate-400 flex flex-col gap-1.5 leading-relaxed">
+                  <span className="font-bold uppercase tracking-wider text-amber-500/90 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {language === 'en' ? 'Sandbox Testing Simulator' : 'Simulasi Sandbox'}
                   </span>
-                  <p>
-                    {language === 'en' 
-                      ? 'Selects the first active CONFIRMED reservation from todays scheduled database. To target a specific one, enter it above.' 
-                      : 'Memilih reservasi CONFIRMED aktif pertama hari ini dari database. Untuk kode spesifik, ketik di atas.'}
-                  </p>
+                  <p>{language === 'en' ? 'Triggers scanning simulation using the current active array.' : 'Simulasikan pembacaan event QR menggunakan data kedatangan yang terdaftar.'}</p>
                   <button
                     onClick={handleSimulateScan}
-                    className="self-start mt-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 hover:text-slate-100 rounded-lg font-bold text-[10px] transition-colors cursor-pointer"
+                    className="self-start px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-md font-bold text-slate-300 border-0 cursor-pointer text-[10px]"
                   >
-                    {language === 'en' ? 'Simulate Scan Event' : 'Simulasikan Scan Tamu'}
+                    {language === 'en' ? 'Simulate Active Scan' : 'Simulasikan Scan'}
                   </button>
                 </div>
               )}
@@ -1207,10 +972,10 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
       {/* Check-In Action Modal */}
       {checkInModalBooking && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl w-full max-w-sm p-6 relative flex flex-col gap-5">
+          <div className="bg-white rounded-3xl border border-slate-150 shadow-xl w-full max-w-sm p-6 relative flex flex-col gap-4">
             <button 
               onClick={() => setCheckInModalBooking(null)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1219,45 +984,33 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
               <h3 className="font-bold text-base text-indigo-950">
                 {language === 'en' ? 'Confirm Guest Check-In' : 'Konfirmasi Check-In Tamu'}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {language === 'en' ? 'Please verify reservation details prior to check-in' : 'Silakan verifikasi detail pemesanan sebelum check-in'}
-              </p>
             </div>
 
-            {/* Check-In card info */}
-            <div className="bg-slate-50 p-4 rounded-2xl flex flex-col gap-2.5 text-xs text-slate-650">
-              <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                <span className="text-slate-400 font-semibold">{language === 'en' ? 'Guest:' : 'Tamu:'}</span>
-                <strong className="text-slate-800">{checkInModalBooking.guestName}</strong>
+            <div className="bg-slate-50 p-4 rounded-2xl flex flex-col gap-2 text-xs font-semibold text-slate-600">
+              <div className="flex justify-between border-b border-slate-200/40 pb-1.5">
+                <span>Guest:</span>
+                <strong className="text-slate-900">{checkInModalBooking.guestName}</strong>
               </div>
-              <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                <span className="text-slate-400 font-semibold">{language === 'en' ? 'Booking Code:' : 'Kode Pemesanan:'}</span>
+              <div className="flex justify-between border-b border-slate-200/40 pb-1.5">
+                <span>Code:</span>
                 <strong className="text-indigo-600 font-mono font-bold">{checkInModalBooking.bookingCode}</strong>
               </div>
-              <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                <span className="text-slate-400 font-semibold">{language === 'en' ? 'Property:' : 'Properti:'}</span>
-                <strong className="text-slate-800">{checkInModalBooking.property?.name ?? 'N/A'}</strong>
-              </div>
-              <div className="flex justify-between pb-0.5">
-                <span className="text-slate-400 font-semibold">{language === 'en' ? 'Room:' : 'Kamar:'}</span>
-                <strong className="text-slate-800">{checkInModalBooking.room?.name ?? 'General'}</strong>
+              <div className="flex justify-between">
+                <span>Room:</span>
+                <strong className="text-slate-900">{checkInModalBooking.room?.name ?? 'General'}</strong>
               </div>
             </div>
 
-            <p className="text-center text-xs font-bold text-indigo-950">
-              {language === 'en' ? 'Confirm guest arrival?' : 'Konfirmasi kedatangan tamu?'}
-            </p>
-
-            <div className="flex gap-2.5">
+            <div className="flex gap-2.5 mt-2">
               <button
                 onClick={() => setCheckInModalBooking(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 text-xs font-bold rounded-xl cursor-pointer"
+                className="flex-1 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border-0 cursor-pointer"
               >
                 {language === 'en' ? 'Cancel' : 'Batal'}
               </button>
               <button
                 onClick={() => handleConfirmCheckIn(checkInModalBooking.id)}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-3xs"
               >
                 {language === 'en' ? 'Confirm Check-In' : 'Konfirmasi Check-In'}
               </button>
@@ -1266,52 +1019,29 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
         </div>
       )}
 
-      {/* Booking Detail Modal */}
-      {selectedBooking && renderBookingDetailModal(selectedBooking, () => setSelectedBooking(null), language, formatCurrencyIDR)}
+      {/* Render Component modal secara aman */}
+      {selectedBooking && (
+        <BookingDetailModal 
+          booking={selectedBooking} 
+          onClose={() => setSelectedBooking(null)} 
+          language={language} 
+          formatCurrencyIDR={formatCurrencyIDR} 
+        />
+      )}
 
-      {/* Modern Success Toast / Modal */}
+      {/* Success Toast */}
       {successToast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-emerald-600 text-white rounded-2xl p-5 shadow-2xl max-w-sm border border-emerald-500 flex flex-col gap-3 relative">
-            <button 
-              onClick={() => setSuccessToast(null)}
-              className="absolute top-3 right-3 text-emerald-100 hover:text-white cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="bg-emerald-600 text-white rounded-2xl p-4 shadow-2xl max-w-sm border border-emerald-500 flex flex-col gap-3 relative">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-5 h-5 text-white" />
+              <div className="w-7 h-7 rounded-full bg-emerald-500/30 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h4 className="font-extrabold text-sm tracking-tight">{language === 'en' ? 'Check-in Recorded' : 'Check-in Tercatat'}</h4>
-                <p className="text-[11px] text-emerald-100">{language === 'en' ? 'Guest check-in session successfully completed.' : 'Sesi check-in tamu berhasil diselesaikan.'}</p>
+                <h4 className="font-black text-xs tracking-tight">{language === 'en' ? 'Check-in Recorded' : 'Check-in Tercatat'}</h4>
+                <p className="text-[10px] text-emerald-100 font-semibold">{successToast.guestName} ({successToast.bookingCode})</p>
               </div>
             </div>
-            <div className="bg-emerald-700/30 rounded-xl p-3 flex flex-col gap-1.5 text-[11px] border border-emerald-500/20">
-              <div className="flex justify-between">
-                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Guest:' : 'Tamu:'}</span>
-                <span className="font-bold">{successToast.guestName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Booking Code:' : 'Pemesanan:'}</span>
-                <span className="font-mono font-bold">{successToast.bookingCode}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Property:' : 'Properti:'}</span>
-                <span className="font-semibold">{successToast.property}</span>
-              </div>
-              <div className="flex justify-between border-t border-emerald-500/20 pt-1.5 mt-0.5">
-                <span className="text-emerald-100 font-medium">{language === 'en' ? 'Check-in Time:' : 'Waktu Masuk:'}</span>
-                <span className="font-bold">{successToast.time}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => setSuccessToast(null)}
-              className="w-full py-1.5 bg-white text-emerald-700 hover:bg-emerald-50 text-[11px] font-extrabold rounded-lg transition-colors cursor-pointer text-center"
-            >
-              {language === 'en' ? 'Close' : 'Tutup'}
-            </button>
           </div>
         </div>
       )}
@@ -1320,19 +1050,8 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
       {errorToast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
           <div className="bg-rose-600 text-white rounded-2xl p-4 shadow-2xl max-w-sm border border-rose-500 flex items-center gap-3 relative">
-            <button 
-              onClick={() => setErrorToast(null)}
-              className="absolute top-2 right-2 text-rose-100 hover:text-white cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-7 h-7 rounded-full bg-rose-550/30 flex items-center justify-center shrink-0">
-              <AlertCircle className="w-4 h-4 text-white" />
-            </div>
-            <div className="pr-4">
-              <h5 className="font-bold text-xs">{language === 'en' ? 'Error' : 'Kesalahan'}</h5>
-              <p className="text-[10px] text-rose-100">{errorToast}</p>
-            </div>
+            <AlertCircle className="w-4 h-4 text-white shrink-0" />
+            <p className="text-[11px] font-bold">{errorToast}</p>
           </div>
         </div>
       )}
@@ -1341,229 +1060,107 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
   );
 }
 
-// Global Reusable Booking Detail Modal with Timeline and QR Code
-export function renderBookingDetailModal(booking: any, onClose: () => void, language: string, formatCurrencyIDR: (v: any) => string) {
-  // Generate a real client-generated QR Code dataUrl
+// 1. KOMPONEN UTAMA DENGAN STRUKTUR REACT HOOK YANG BENAR
+export function BookingDetailModal({ booking, onClose, language, formatCurrencyIDR }: { booking: any, onClose: () => void, language: string, formatCurrencyIDR: (v: any) => string }) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  
   useEffect(() => {
-    const payload = JSON.stringify({
-      bookingCode: booking.bookingCode,
-      guestId: booking.guestId,
-      propertyId: booking.propertyId,
-      roomId: booking.roomId,
-      checkInDate: booking.startDate,
-      checkOutDate: booking.endDate
-    });
+    const payload = JSON.stringify({ bookingCode: booking.bookingCode });
     QRCode.toDataURL(payload, { margin: 1, scale: 4 })
       .then(url => setQrCodeUrl(url))
       .catch(err => console.error(err));
   }, [booking]);
 
-  // Build the Booking Timeline list
-  // Reservation Created (createdAt of booking)
-  // Payment Submitted (createdAt or log 'UPLOAD_PROOF')
-  // Payment Confirmed (status = CONFIRMED, COMPLETED, CHECKED_IN, CHECKED_OUT)
-  // Checked-In (checkedInAt field match)
-  // Checked-Out (checkedOutAt field match)
-  // Completed (status = COMPLETED / CHECKED_OUT etc)
   const tzOffsetVal = new Date().getTimezoneOffset() * 60000;
   const todayStr = new Date(Date.now() - tzOffsetVal).toISOString().split('T')[0];
   const isLateCheckOut = booking.status === 'CHECKED_IN' && todayStr > booking.endDate;
 
   const steps = [
-    {
-      title: language === 'en' ? 'Reservation Created' : 'Reservasi Dibuat',
-      date: booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : 'N/A',
-      time: booking.createdAt ? new Date(booking.createdAt).toLocaleTimeString() : 'N/A',
-      user: booking.guestName,
-      done: true
-    },
-    {
-      title: language === 'en' ? 'Payment Submitted' : 'Bukti Pembayaran Diunggah',
-      date: booking.paymentProof?.createdAt ? new Date(booking.paymentProof.createdAt).toLocaleDateString() : '',
-      time: booking.paymentProof?.createdAt ? new Date(booking.paymentProof.createdAt).toLocaleTimeString() : '',
-      user: booking.guestName,
-      done: !!booking.paymentProof
-    },
-    {
-      title: language === 'en' ? 'Payment Confirmed' : 'Pembayaran Dikonfirmasi',
-      date: (booking.status !== 'WAITING_PAYMENT' && booking.status !== 'WAITING_CONFIRMATION' && booking.status !== 'CANCELLED' && booking.status !== 'AUTO_EXPIRED') ? 'Confirmed' : '',
-      time: '',
-      user: 'Host',
-      done: (booking.status !== 'WAITING_PAYMENT' && booking.status !== 'WAITING_CONFIRMATION' && booking.status !== 'CANCELLED' && booking.status !== 'AUTO_EXPIRED')
-    },
-    {
-      title: language === 'en' ? 'Checked-In' : 'Checked-In',
-      date: booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleDateString() : '',
-      time: booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleTimeString() : '',
-      user: 'Host',
-      done: !!booking.checkedInAt || booking.status === 'CHECKED_IN' || booking.status === 'CHECKED_OUT' || booking.status === 'COMPLETED'
-    },
-    {
-      title: language === 'en' ? 'Checked-Out' : 'Checked-Out',
-      date: booking.checkedOutAt ? new Date(booking.checkedOutAt).toLocaleDateString() : '',
-      time: booking.checkedOutAt ? new Date(booking.checkedOutAt).toLocaleTimeString() : '',
-      user: 'Host',
-      done: !!booking.checkedOutAt || booking.status === 'CHECKED_OUT' || booking.status === 'COMPLETED'
-    },
-    {
-      title: language === 'en' ? 'Completed' : 'Selesai',
-      date: booking.status === 'COMPLETED' ? 'Completed' : '',
-      time: '',
-      user: 'System',
-      done: booking.status === 'COMPLETED'
-    }
+    { title: language === 'en' ? 'Reservation Created' : 'Reservasi Dibuat', date: booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : 'N/A', done: true },
+    { title: language === 'en' ? 'Payment Confirmed' : 'Pembayaran Dikonfirmasi', date: booking.status !== 'WAITING_PAYMENT' ? 'Confirmed' : '', done: booking.status !== 'WAITING_PAYMENT' },
+    { title: language === 'en' ? 'Checked-In' : 'Checked-In', date: booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleDateString() : '', done: !!booking.checkedInAt }
   ];
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl w-full max-w-2xl p-6 relative flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
-        <button 
-          onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 cursor-pointer"
-        >
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl w-full max-w-2xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
           <X className="w-5 h-5" />
         </button>
 
-        <div className="pb-3 border-b border-slate-100 flex justify-between items-start pr-8">
+        <div className="pb-2 border-b border-slate-100 flex justify-between items-start">
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-base text-indigo-950">
-                {language === 'en' ? 'Booking Details & Timeline' : 'Detail Reservasi & Garis Waktu'}
-              </h3>
-              {isLateCheckOut && (
-                <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide border border-red-200">
-                  LATE CHECKOUT
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 font-mono font-semibold">Code: {booking.bookingCode}</p>
+            <h3 className="font-bold text-base text-indigo-950 flex items-center gap-2">
+              {language === 'en' ? 'Booking Profile & Timeline' : 'Profil Reservasi & Garis Waktu'}
+              {isLateCheckOut && <span className="bg-red-50 text-red-600 text-[9px] px-2 py-0.5 rounded font-bold">LATE</span>}
+            </h3>
+            <p className="text-xs text-slate-400 font-mono font-bold mt-0.5">Code: {booking.bookingCode}</p>
           </div>
-          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-            booking.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' :
-            booking.status === 'CHECKED_IN' ? 'bg-blue-50 text-blue-700' :
-            booking.status === 'CHECKED_OUT' ? 'bg-indigo-50 text-indigo-700' :
-            booking.status === 'COMPLETED' ? 'bg-purple-50 text-purple-700' :
-            'bg-slate-50 text-slate-650'
-          }`}>
-            {booking.status}
-          </span>
         </div>
 
-        {/* Info Grid split with QR code generated */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-          
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start text-xs font-semibold text-slate-600">
           <div className="md:col-span-8 flex flex-col gap-4">
-            
-            {/* Primary Fields */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Guest Name</span>
-                <span className="block font-bold text-slate-800 mt-0.5">{booking.guestName}</span>
+                <span className="text-[10px] text-slate-400 uppercase block">Guest Name</span>
+                <span className="text-slate-800 font-bold block mt-0.5">{booking.guestName}</span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Mobile / Phone</span>
-                <span className="block font-medium text-slate-800 mt-0.5">{booking.guestPhone}</span>
+                <span className="text-[10px] text-slate-400 uppercase block">Phone</span>
+                <span className="text-slate-800 font-bold block mt-0.5">{booking.guestPhone}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[10px] text-slate-400 uppercase block">Property Context</span>
+                <span className="text-slate-800 font-bold block mt-0.5">{booking.property?.name ?? 'N/A'} (Room: {booking.room?.name ?? 'General'})</span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email Address</span>
-                <span className="block font-medium text-slate-800 mt-0.5">{booking.guestEmail}</span>
+                <span className="text-[10px] text-slate-400 uppercase block">Check-In Schedule</span>
+                <span className="text-slate-800 block mt-0.5">{booking.startDate} to {booking.endDate}</span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Property</span>
-                <span className="block font-semibold text-slate-800 mt-0.5 truncate">{booking.property?.name ?? 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Room Number</span>
-                <span className="block font-medium text-slate-800 mt-0.5">{booking.room?.name ?? 'General'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Check-In Duration</span>
-                <span className="block font-medium text-slate-800 mt-0.5">{booking.startDate} to {booking.endDate}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Total Amount Paid</span>
-                <span className="block font-black text-indigo-700 mt-0.5">{formatCurrencyIDR(booking.totalAmount)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Invoice Link</span>
-                <span className="block text-indigo-600 font-bold mt-0.5">
-                  <a href={`/api/bookings/invoice/${booking.id}`} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>View Invoice</span>
-                  </a>
-                </span>
+                <span className="text-[10px] text-slate-400 uppercase block">Total Amount</span>
+                <span className="text-indigo-600 font-black block mt-0.5">{formatCurrencyIDR(booking.totalAmount)}</span>
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="mt-2 pt-4 border-t border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">RESERVATION TIMELINE</span>
-              
-              <div className="flex flex-col gap-4">
-                {steps.map((st, idx) => {
-                  return (
-                    <div key={idx} className="flex gap-4 items-start relative pb-1">
-                      {/* Left Dot Guide */}
-                      <div className="flex flex-col items-center shrink-0">
-                        <div className={`w-3.5 h-3.5 rounded-full border-2 ${
-                          st.done ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-200'
-                        } z-10`} />
-                        {idx !== steps.length - 1 && (
-                          <div className={`w-0.5 h-10 ${
-                            st.done && steps[idx+1].done ? 'bg-indigo-600' : 'bg-slate-150'
-                          } -mb-4`} />
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-baseline gap-2">
-                          <h4 className={`text-xs font-bold leading-none ${
-                            st.done ? 'text-indigo-950 font-sans' : 'text-slate-400'
-                          }`}>
-                            {st.title}
-                          </h4>
-                          <span className="text-[10px] text-slate-450 font-medium font-mono shrink-0">
-                            {st.date ? `${st.date} ${st.time}` : language === 'en' ? 'Awaiting' : 'Menunggu'}
-                          </span>
-                        </div>
-                        {st.done && (
-                          <div className="text-[10px] text-slate-500 font-semibold mt-1">
-                            By: {st.user}
-                          </div>
-                        )}
-                      </div>
+            <div className="pt-4 border-t border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-3">Live Progress Timeline</span>
+              <div className="flex flex-col gap-3">
+                {steps.map((st, idx) => (
+                  <div key={idx} className="flex gap-3 items-center">
+                    <div className={`w-3 h-3 rounded-full ${st.done ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                    <div className="flex-1 flex justify-between text-xs">
+                      <span className={st.done ? 'text-slate-800 font-bold' : 'text-slate-400'}>{st.title}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">{st.date || '--'}</span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
-
           </div>
 
-          {/* QR Code Segment */}
-          <div className="md:col-span-4 flex flex-col items-center gap-2.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-100 text-center">
-            <span className="text-[10px] font-black text-indigo-650 uppercase tracking-widest">Digital Boarding QR</span>
-            
+          <div className="md:col-span-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center text-center gap-2">
+            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Boarding Token QR</span>
             {qrCodeUrl ? (
-              <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
-                <img src={qrCodeUrl} alt="Booking QR" className="w-36 h-36 border border-slate-50" referrerPolicy="no-referrer" />
-              </div>
+              <img src={qrCodeUrl} alt="QR" className="w-32 h-32 bg-white p-1 rounded-xl border border-slate-200" />
             ) : (
-              <div className="w-36 h-36 bg-slate-100 rounded-xl flex items-center justify-center animate-pulse">
-                <QrCode className="w-8 h-8 text-slate-300" />
-              </div>
+              <div className="w-32 h-32 bg-slate-200 rounded-xl animate-pulse" />
             )}
-
-            <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-              {language === 'en' 
-                ? 'Check-In agents can scan this QR code for instant, zero-touch boarding validation step.' 
-                : 'Agen Check-In dapat memindai kode QR ini untuk verifikasi kedatangan instan.'}
-            </p>
           </div>
-
         </div>
       </div>
     </div>
+  );
+}
+
+// 2. FUNGSI JAMBATAN AGAR HALAMAN LAIN YANG MASIH MEMANGGIL SEBAGAI FUNGSI TIDAK CRASH
+export function renderBookingDetailModal(booking: any, onClose: () => void, language: string, formatCurrencyIDR: (v: any) => string) {
+  return (
+    <BookingDetailModal 
+      booking={booking}
+      onClose={onClose}
+      language={language}
+      formatCurrencyIDR={formatCurrencyIDR}
+    />
   );
 }

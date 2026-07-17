@@ -218,7 +218,7 @@ export default function Login({ onNavigate }: LoginProps) {
         )}
 
         {/* OAuth Buttons */}
-        <div className="flex flex-col gap-2 mb-4">
+        {/* <div className="flex flex-col gap-2 mb-4">
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -241,13 +241,13 @@ export default function Login({ onNavigate }: LoginProps) {
             <Apple className="w-4 h-4 text-slate-400" />
             Continue with Apple
           </button>
-        </div>
+        </div> */}
 
-        <div className="relative flex py-2 items-center mb-4">
-          <div className="flex-grow border-t border-slate-100"></div>
-          <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or sign in with email</span>
-          <div className="flex-grow border-t border-slate-100"></div>
-        </div>
+        {/* <div className="relative flex py-2 items-center mb-4">
+          <div className="grow border-t border-slate-100"></div>
+          <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or sign in with email</span>
+          <div className="grow border-t border-slate-100"></div>
+        </div> */}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -257,7 +257,7 @@ export default function Login({ onNavigate }: LoginProps) {
               <input 
                 required 
                 type="email" 
-                placeholder="you@domain.com" 
+                placeholder="Email Address" 
                 value={email} 
                 onChange={e => setEmail(e.target.value)} 
                 className="w-full bg-slate-50 border border-slate-100 focus:border-indigo-200 focus:bg-white text-xs font-semibold py-2.5 pl-10 pr-4 rounded-xl focus:outline-hidden transition-all text-indigo-950"

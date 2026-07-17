@@ -12,7 +12,6 @@ import {
   Clock, 
   Sliders, 
   ArrowRight,
-  Sparkles,
   CheckCircle,
   HelpCircle
 } from 'lucide-react';
@@ -347,7 +346,7 @@ export default function TenantBookings() {
                               onClick={() => handleUpdateStatus(b.id, targetStatus)}
                               className={`px-4 py-2 text-xs font-black rounded-xl shadow-3xs cursor-pointer flex items-center gap-1.5 border-0 ${actionColor}`}
                             >
-                              <Sparkles className="w-3.5 h-3.5" />
+                              
                               <span>{nextActionText}</span>
                             </button>
                           )}
