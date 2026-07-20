@@ -166,13 +166,16 @@ export function PropertyCard({
               </>
             ) : (
               <>
-                <button
-                  onClick={() => onView(property)}
-                  className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-600 transition-all"
+                <a
+                  href={`/property/${property.slug || property.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="View Property Details"
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-600 transition-all cursor-pointer"
                 >
                   <Eye className="w-3 h-3" />
                   <span>{language === 'en' ? 'View' : 'Lihat'}</span>
-                </button>
+                </a>
                 <button
                   onClick={() => onEdit(property)}
                   className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 border border-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-600 transition-all"

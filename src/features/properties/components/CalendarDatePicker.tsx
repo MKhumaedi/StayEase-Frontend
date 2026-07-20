@@ -1,5 +1,12 @@
-import React, { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, Info } from 'lucide-react';
+
+export interface DatePriceInfo {
+  price: number;
+  badge?: string;
+  isPeak?: boolean;
+  isPromo?: boolean;
+}
 
 interface CalendarDatePickerProps {
   startDate: string;
@@ -10,6 +17,8 @@ interface CalendarDatePickerProps {
   activeField: 'checkIn' | 'checkOut';
   setActiveField: (field: 'checkIn' | 'checkOut') => void;
   onClose: () => void;
+  ratesMap?: Record<string, DatePriceInfo>;
+  basePrice?: number;
 }
 
 export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
@@ -21,11 +30,12 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
   activeField,
   setActiveField,
   onClose,
+  ratesMap = {},
+  basePrice = 0,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
 
-  // Get local midnight today
   const getTodayLocalDate = (): Date => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -47,14 +57,12 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  // Open on current month (Today's month is always the first visible month)
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     const todayObj = getTodayLocalDate();
     return new Date(todayObj.getFullYear(), todayObj.getMonth(), 1);
   });
 
-  // Click outside to close
-  React.useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         onClose();
@@ -67,10 +75,9 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
 
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
+  const firstDayIndex = new Date(year, month, 1).getDay();
   const totalDays = new Date(year, month + 1, 0).getDate();
 
-  // Prevent navigating to months entirely before today
   const canGoPrev = !(year < today.getFullYear() || (year === today.getFullYear() && month <= today.getMonth()));
 
   const handlePrevMonth = () => {
@@ -83,18 +90,52 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
     setCurrentMonth(new Date(year, month + 1, 1));
   };
 
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+
+  const formatCompactCurrency = (val: number) => {
+    if (!val || val <= 0) return '';
+    if (val >= 1000000) {
+      return (val / 1000000).toFixed(val % 1000000 === 0 ? 0 : 1) + 'jt';
+    }
+    if (val >= 1000) {
+      return (val / 1000).toFixed(0) + 'k';
+    }
+    return val.toString();
+  };
+
+  const getDatePriceInfo = (isoDate: string): DatePriceInfo => {
+    if (ratesMap[isoDate]) {
+      return ratesMap[isoDate];
+    }
+    const d = parseLocalDate(isoDate);
+    const day = d.getDay();
+    const isWeekend = day === 0 || day === 5 || day === 6;
+    const rate = isWeekend && basePrice > 0 ? basePrice * 1.2 : basePrice;
+
+    return {
+      price: rate,
+      badge: isWeekend ? (language === 'en' ? 'Weekend' : 'Akhir Pekan') : undefined,
+      isPeak: false,
+      isPromo: false
+    };
+  };
+
   const handleDayClick = (dayNum: number) => {
     const cellDate = new Date(year, month, dayNum);
     const cellDateStr = formatLocalDate(cellDate);
 
-    if (cellDate < today) return; // Prevent selection of past dates
+    if (cellDate < today) return;
 
     if (activeField === 'checkIn') {
       onSelectStartDate(cellDateStr);
-      // Auto-switch to checkout selection
       setActiveField('checkOut');
     } else {
-      // If user selects check-out date on or before check-in, set check-in to this date instead and stay on check-out
       const checkInObj = parseLocalDate(startDate);
       if (cellDate <= checkInObj) {
         onSelectStartDate(cellDateStr);
@@ -122,7 +163,7 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
   ];
   const monthNamesId = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktobor', 'November', 'Desember'
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
   const monthName = language === 'en' ? monthNamesEn[month] : monthNamesId[month];
@@ -131,12 +172,15 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
   const daysOfWeekId = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
   const daysOfWeek = language === 'en' ? daysOfWeekEn : daysOfWeekId;
 
+  const activeSelectedIso = activeField === 'checkIn' ? startDate : endDate;
+  const activePriceInfo = activeSelectedIso ? getDatePriceInfo(activeSelectedIso) : null;
+
   return (
     <div 
       ref={containerRef}
       className="absolute top-full left-0 right-0 mt-2 bg-white rounded-3xl border border-slate-150 shadow-2xl p-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200"
     >
-      {/* Calendar Header */}
+      {/* Header Kalender */}
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-sm font-extrabold text-slate-800 font-display">
           {monthName} {year}
@@ -180,12 +224,10 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
         className="grid grid-cols-7 gap-1 text-center"
         onMouseLeave={() => setHoveredDate(null)}
       >
-        {/* Empty cells for padding */}
         {Array.from({ length: firstDayIndex }).map((_, idx) => (
-          <div key={`empty-${idx}`} className="aspect-square" />
+          <div key={`empty-${idx}`} className="h-11" />
         ))}
 
-        {/* Calendar days */}
         {Array.from({ length: totalDays }).map((_, idx) => {
           const dayNum = idx + 1;
           const cellDate = new Date(year, month, dayNum);
@@ -199,20 +241,22 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
           const isRange = startDate && endDate && cellDateStr > startDate && cellDateStr < endDate;
           const isHoverRange = !isRange && activeField === 'checkOut' && startDate && hoveredDate && cellDateStr > startDate && cellDateStr <= hoveredDate;
 
-          let btnClasses = 'w-full aspect-square text-xs font-semibold flex items-center justify-center transition-all focus:outline-none ';
+          const priceInfo = getDatePriceInfo(cellDateStr);
+
+          let btnClasses = 'w-full h-11 text-xs font-semibold flex flex-col items-center justify-center transition-all focus:outline-none cursor-pointer ';
 
           if (isDisabled) {
             btnClasses += 'text-slate-300 opacity-25 cursor-not-allowed ';
           } else if (isSelected) {
-            btnClasses += 'bg-indigo-600 text-white font-extrabold rounded-full shadow-sm scale-105 ring-2 ring-indigo-600/20 ';
+            btnClasses += 'bg-indigo-600 text-white font-extrabold rounded-xl shadow-md shadow-indigo-200 scale-105 z-10 ';
           } else if (isRange) {
-            btnClasses += 'bg-indigo-50 text-indigo-950 font-bold rounded-lg hover:bg-indigo-100/70 ';
+            btnClasses += 'bg-indigo-50 text-indigo-950 font-bold rounded-none ';
           } else if (isHoverRange) {
-            btnClasses += 'bg-indigo-50/40 text-indigo-900 rounded-lg ';
+            btnClasses += 'bg-indigo-50/40 text-indigo-900 rounded-none ';
           } else if (isTodayCell) {
-            btnClasses += 'border border-indigo-300 text-indigo-600 font-bold rounded-full hover:bg-slate-50 ';
+            btnClasses += 'border border-indigo-300 text-indigo-600 font-bold rounded-xl hover:bg-slate-50 ';
           } else {
-            btnClasses += 'text-slate-700 hover:bg-slate-100 rounded-full ';
+            btnClasses += 'text-slate-700 hover:bg-slate-100 rounded-xl ';
           }
 
           return (
@@ -230,14 +274,59 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
               }}
               className={btnClasses}
             >
-              {dayNum}
+              <span className="leading-none">{dayNum}</span>
+              {!isDisabled && priceInfo.price > 0 && (
+                <span className={`text-[8px] font-medium leading-tight mt-0.5 ${
+                  isSelected 
+                    ? 'text-indigo-100 font-semibold' 
+                    : priceInfo.isPeak 
+                    ? 'text-purple-600 font-bold' 
+                    : priceInfo.isPromo 
+                    ? 'text-emerald-600 font-bold' 
+                    : 'text-slate-400'
+                }`}>
+                  {formatCompactCurrency(priceInfo.price)}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Active Selection Help Footer */}
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+      {/* Section Nominal Harga di Kolom Bawah Kalender saat Tanggal Klik */}
+      {activeSelectedIso && activePriceInfo && activePriceInfo.price > 0 && (
+        <div className="mt-3.5 pt-3 border-t border-slate-100 bg-indigo-50/50 -mx-5 -mb-5 p-3.5 rounded-b-3xl flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase tracking-wider text-indigo-900/70">
+              {activeField === 'checkIn' 
+                ? (language === 'en' ? 'Check-in Rate' : 'Harga Check-in') 
+                : (language === 'en' ? 'Check-out Date Rate' : 'Harga Check-out')}
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-xs font-bold text-slate-700">
+                {parseLocalDate(activeSelectedIso).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              {activePriceInfo.badge && (
+                <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded uppercase">
+                  {activePriceInfo.badge}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="block text-sm font-extrabold text-indigo-950">
+              {formatCurrency(activePriceInfo.price)}
+            </span>
+            <span className="text-[9px] font-medium text-slate-500">
+              / {language === 'en' ? 'night' : 'malam'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Navigasi */}
+      <div className="mt-3 pt-2 flex items-center justify-between text-[10px] text-slate-400">
         <div className="flex items-center gap-1.5 font-bold">
           <Calendar className="w-3.5 h-3.5 text-indigo-500" />
           <span>
@@ -249,7 +338,7 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="text-indigo-600 hover:text-indigo-800 font-extrabold"
+          className="text-indigo-600 hover:text-indigo-800 font-extrabold cursor-pointer"
         >
           {language === 'en' ? 'Close' : 'Tutup'}
         </button>

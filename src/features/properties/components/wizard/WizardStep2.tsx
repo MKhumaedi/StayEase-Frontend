@@ -156,6 +156,9 @@ export function WizardStep2({ form, setForm, onChange }: WizardStep2Props) {
             interactive={true}
             height="200px"
             onCoordinatesChange={(lat, lng) => setForm((prev: any) => ({ ...prev, latitude: lat, longitude: lng }))}
+            address={form.fullAddress}
+            city={form.city}
+            province={form.province}
           />
         </div>
       </div>

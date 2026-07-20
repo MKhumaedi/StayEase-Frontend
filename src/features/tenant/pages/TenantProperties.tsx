@@ -10,6 +10,7 @@ import { PropertyDetailModal } from '../../properties/components/PropertyDetailM
 import { DeleteConfirmModal } from '../../properties/components/DeleteConfirmModal';
 import { PropertyWizardModal } from '../../properties/components/PropertyWizardModal';
 import { useAuth } from '../../../shared/context/AuthContext';
+import { useWishlist } from '../../../shared/context/WishlistContext';
 import { useAsyncAction, useIdempotency } from '../../../protection';
 import { clearFilterOptionsCache } from '../../../hooks/usePropertyFilterOptions';
 
@@ -26,6 +27,7 @@ const DEFAULT_CATEGORIES: PropertyCategory[] = [
 export default function TenantProperties({ initialTab }: { initialTab?: 'list' | 'rooms' | 'calendar' }) {
   const { language } = useLanguage();
   const { token, user } = useAuth();
+  const { triggerToast } = useWishlist();
   const [properties, setProperties] = useState<Property[]>([]);
   const [categories, setCategories] = useState<PropertyCategory[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
   const { view, setView } = usePropertyView();
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
+  const [propertyToDelete, setPropertyToDelete] = useState<any | null>(null);
 
   const [showDetail, setShowDetail] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
@@ -257,9 +259,10 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
     }
   };
 
-  // Quick Action: Delete Stays (Soft deleted index) using protection hook + idempotency
+  // Quick Action: Delete Stays (Draft or Soft deleted index) using protection hook + idempotency
   const { execute: handleDeleteConfirm, isLoading: isDeleting } = useAsyncAction(async () => {
     if (!propertyToDelete) return;
+    const isDraft = !!propertyToDelete.isDraft || propertyToDelete.status === 'DRAFT';
     try {
       const res = await fetch(`/api/properties/${propertyToDelete.id}`, { 
         method: 'DELETE',
@@ -268,16 +271,77 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
       });
-      if (res.ok) {
-        setProperties(prev => prev.filter(p => p.id !== propertyToDelete.id));
+
+      if (res.ok || isDraft) {
+        if (isDraft) {
+          // Clean up draft from local storage
+          const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+          if (savedDraftsRaw) {
+            try {
+              const parsed = JSON.parse(savedDraftsRaw);
+              const filtered = parsed.filter((d: any) => d.id !== propertyToDelete.id);
+              localStorage.setItem('stay_ease_property_drafts', JSON.stringify(filtered));
+              
+              const activeDraftId = localStorage.getItem('stay_ease_active_draft_id');
+              if (activeDraftId === propertyToDelete.id) {
+                localStorage.removeItem('stay_ease_active_draft_id');
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          loadDrafts();
+        } else {
+          setProperties(prev => prev.filter(p => p.id !== propertyToDelete.id));
+        }
+
         clearFilterOptionsCache();
+        triggerToast(
+          language === 'en' ? 'Property deleted successfully.' : 'Properti berhasil dihapus.',
+          'success'
+        );
+        setShowDelete(false);
+        setPropertyToDelete(null);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errMsg = errorData.error || (language === 'en' ? 'Failed to delete property.' : 'Gagal menghapus properti.');
+        triggerToast(errMsg, 'error');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (isDraft) {
+        // Fallback for draft offline/database deletion error to ensure local draft cleanup works
+        const savedDraftsRaw = localStorage.getItem('stay_ease_property_drafts');
+        if (savedDraftsRaw) {
+          try {
+            const parsed = JSON.parse(savedDraftsRaw);
+            const filtered = parsed.filter((d: any) => d.id !== propertyToDelete.id);
+            localStorage.setItem('stay_ease_property_drafts', JSON.stringify(filtered));
+            
+            const activeDraftId = localStorage.getItem('stay_ease_active_draft_id');
+            if (activeDraftId === propertyToDelete.id) {
+              localStorage.removeItem('stay_ease_active_draft_id');
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        loadDrafts();
+        clearFilterOptionsCache();
+        triggerToast(
+          language === 'en' ? 'Property deleted successfully.' : 'Properti berhasil dihapus.',
+          'success'
+        );
+        setShowDelete(false);
+        setPropertyToDelete(null);
+      } else {
+        triggerToast(
+          err?.message || (language === 'en' ? 'Failed to delete property.' : 'Gagal menghapus properti.'),
+          'error'
+        );
+      }
     } finally {
       rotateDeleteKey();
-      setShowDelete(false);
-      setPropertyToDelete(null);
     }
   });
 
@@ -543,7 +607,13 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
                     onEdit={(p) => { setEditingProperty(p); setShowWizard(true); }}
                     onDelete={(p) => { setPropertyToDelete(p); setShowDelete(true); }}
                     onToggleStatus={handleToggleStatus}
-                    onDeleteDraft={handleDeleteDraft}
+                    onDeleteDraft={(id) => {
+                      const draft = combinedList.find(item => item.id === id);
+                      if (draft) {
+                        setPropertyToDelete(draft);
+                        setShowDelete(true);
+                      }
+                    }}
                     onContinueDraft={handleContinueDraft}
                   />
                 ) : (
@@ -554,7 +624,13 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
                     onEdit={(p) => { setEditingProperty(p); setShowWizard(true); }}
                     onDelete={(p) => { setPropertyToDelete(p); setShowDelete(true); }}
                     onToggleStatus={handleToggleStatus}
-                    onDeleteDraft={handleDeleteDraft}
+                    onDeleteDraft={(id) => {
+                      const draft = combinedList.find(item => item.id === id);
+                      if (draft) {
+                        setPropertyToDelete(draft);
+                        setShowDelete(true);
+                      }
+                    }}
                     onContinueDraft={handleContinueDraft}
                   />
                 )}
@@ -610,7 +686,7 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
 
       <DeleteConfirmModal 
         isOpen={showDelete} 
-        propertyName={propertyToDelete?.name || ''} 
+        property={propertyToDelete}
         isDeleting={isDeleting} 
         onConfirm={handleDeleteConfirm} 
         onClose={() => { setShowDelete(false); setPropertyToDelete(null); }} 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Property, Room, Review } from '../../../types';
 import { useAuth } from '../../../shared/context/AuthContext';
-import { CalendarDatePicker } from '../components/CalendarDatePicker';
+import { CalendarDatePicker, DatePriceInfo } from '../components/CalendarDatePicker';
 import { 
   Star, Shield, ArrowLeft, Eye, MessageSquare, BedDouble, HelpCircle, Heart,
   Wifi, Wind, Waves, Bath, Sparkles, Utensils, Film, Compass, Mountain, Car, Dumbbell, Tv, Check, Coffee, AlertTriangle, Info,
@@ -62,7 +62,6 @@ function getAmenityIcon(name: string) {
 
 function formatAmenityLabel(name: string): string {
   if (!name) return '';
-  // Check if it's already a well-formatted string with spaces but no underscores
   if (name.includes(' ') && !name.includes('_')) {
     return name;
   }
@@ -71,7 +70,6 @@ function formatAmenityLabel(name: string): string {
   if (norm === 'wifi' || norm === 'wi-fi') return 'WiFi';
   if (norm === 'ac') return 'Air Conditioning';
   
-  // Replace underscores or hyphens with spaces and capitalize each word
   return name
     .replace(/[_-]+/g, ' ')
     .split(' ')
@@ -183,7 +181,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
     setValidationError(null);
     setStartDate(isoDate);
 
-    // Default check-out must be one night after the selected check-in
     const checkinDate = new Date(isoDate);
     const checkoutDate = new Date(endDate);
     if (checkinDate >= checkoutDate) {
@@ -213,7 +210,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   const getDynamicRates = (base: number) => {
     const dates = generateConsecutiveDates(startDate, 10);
     return dates.map(dStr => {
-      // Create a checkout date (dStr + 1 day)
       const dateParts = dStr.split('-');
       const d = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
       d.setDate(d.getDate() + 1);
@@ -222,7 +218,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
       const dd = String(d.getDate()).padStart(2, '0');
       const nextDStr = `${yyyy}-${mm}-${dd}`;
 
-      // Calculate quote
       const quoteInputProperty = {
         basePrice: data?.property?.basePrice,
         cleaningFee: data?.property?.cleaningFee,
@@ -238,61 +233,44 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
 
       const quote = PricingService.calculateQuote(quoteInputProperty, quoteInputRoom, dStr, nextDStr);
       
-      // Check if peak season or promo is applied
       const isPeak = quote.seasonalAdjustment > 0;
       const isPromo = quote.seasonalAdjustment < 0;
       
-      // Look up if there's a peak season rule matching this date
       const peakRates = data?.property?.peakSeasonRates || [];
       const match = peakRates.find((p: any) => p.isActive !== false && dStr >= p.startDate && dStr <= p.endDate);
 
       let badge = language === 'en' ? "Base Price" : "Harga Dasar";
-      let label = language === 'en' ? "Standard Rate" : "Tarif Dasar";
-      let badgeClass = "bg-slate-100 text-slate-700 border border-slate-200";
-
-      const dParts = dStr.split('-');
-      const tempD = new Date(parseInt(dParts[0]), parseInt(dParts[1]) - 1, parseInt(dParts[2]));
-      const actualDayOfWeek = tempD.getDay(); // 0 is Sunday, 5 is Friday, 6 is Saturday
-      const isWeekend = actualDayOfWeek === 5 || actualDayOfWeek === 6 || actualDayOfWeek === 0;
 
       if (isPeak) {
         badge = match ? match.name : (language === 'en' ? "Peak Season" : "Musim Ramai");
-        label = language === 'en' ? "Peak Season Rate" : "Tarif Musim Ramai";
-        badgeClass = "bg-purple-100 text-purple-700 border border-purple-200";
       } else if (isPromo) {
         badge = language === 'en' ? "Promo" : "Promo";
-        label = language === 'en' ? "Special Promo" : "Promo Khusus";
-        badgeClass = "bg-emerald-100 text-emerald-700 border border-emerald-200";
-      } else if (isWeekend) {
-        badge = language === 'en' ? "Weekend" : "Weekend";
-        label = language === 'en' ? "Weekend Markup" : "Tarif Akhir Pekan";
-        badgeClass = "bg-amber-100 text-amber-700 border border-amber-200";
       }
 
-      // Check if blocked in RoomAvailability
       const isBlocked = selectedRoom?.availabilities?.some((o: any) => o.date === dStr && o.isBlocked) || false;
-
-      const formattedLabelDate = (() => {
-        const parts = dStr.split('-');
-        const tempDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        const day = tempDate.getDate();
-        const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        const monthNamesId = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-        const monthName = language === 'en' ? monthNamesEn[tempDate.getMonth()] : monthNamesId[tempDate.getMonth()];
-        return `${day} ${monthName}`;
-      })();
 
       return {
         isoDate: dStr,
-        date: formattedLabelDate,
         rate: isBlocked ? 0 : quote.subtotal,
         badge: isBlocked ? (language === 'en' ? "Closed" : "Tutup") : badge,
-        label,
         isPromo,
         isPeak,
-        badgeClass: isBlocked ? "bg-red-100 text-red-700 border border-red-200" : badgeClass
       };
     });
+  };
+
+  const getRatesMapForCalendar = (): Record<string, DatePriceInfo> => {
+    const map: Record<string, DatePriceInfo> = {};
+    const dynamicList = getDynamicRates(selectedRoom ? selectedRoom.basePrice : data?.property?.basePrice || 0);
+    dynamicList.forEach(item => {
+      map[item.isoDate] = {
+        price: item.rate,
+        badge: item.badge,
+        isPeak: item.isPeak,
+        isPromo: item.isPromo
+      };
+    });
+    return map;
   };
 
   const propertyTitle = data?.property ? data.property.name : '';
@@ -438,10 +416,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   }, [propertyId, reviewPage]);
 
   useEffect(() => {
-    console.log('Property Reviews:', reviews);
-  }, [reviews]);
-
-  useEffect(() => {
     if (data?.property) {
       fetch('/api/properties')
         .then(res => res.json())
@@ -553,32 +527,16 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   };
 
   useEffect(() => {
-    console.log('[DEBUG DETAIL FRONTEND INPUT] Checking conditions for fetching quote:', {
-      selectedRoom: selectedRoom ? {
-        id: selectedRoom.id,
-        price: (selectedRoom as any).price,
-        basePrice: selectedRoom.basePrice,
-        nightlyRate: (selectedRoom as any).nightlyRate
-      } : null,
-      startDate,
-      endDate,
-      propertyId
-    });
-
     if (selectedRoom && startDate && endDate) {
       const startD = new Date(startDate);
       const endD = new Date(endDate);
       if (startD < endD) {
-        console.log('[DEBUG DETAIL FRONTEND CLIENT] Fetching quote from server...');
         fetch(`/api/quotes?propertyId=${propertyId}&roomId=${selectedRoom.id}&start=${startDate}&end=${endDate}`)
           .then(res => res.json())
           .then(val => {
-            console.log('[DEBUG DETAIL FRONTEND SERVER OUTPUT] Received quote breakdown FROM SERVER:', val);
             if (val && !val.error && typeof val.total === 'number' && !isNaN(val.total)) {
               setBreakdown(val);
             } else {
-              console.error('[DEBUG DETAIL FRONTEND ENGINE] Error/NaN in API quote breakdown:', val);
-              // Fallback calculations using Client PricingService to prevent NaN/broken states
               try {
                 const fallbackInput = {
                   basePrice: typeof selectedRoom.basePrice === 'number' ? selectedRoom.basePrice : Number(selectedRoom.basePrice) || 0,
@@ -587,24 +545,19 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   peakSeasonRates: []
                 };
                 const fbQuote = PricingService.calculateQuote(fallbackInput, selectedRoom, startDate, endDate);
-                console.log('[DEBUG DETAIL FRONTEND CLIENT FALLBACK] Calculated local fallback quote:', fbQuote);
                 setBreakdown(fbQuote);
               } catch (err) {
-                console.error('[DEBUG DETAIL FRONTEND CLIENT FALLBACK FAILED]', err);
                 setBreakdown(null);
               }
             }
           })
           .catch(err => {
-            console.error('[DEBUG DETAIL FRONTEND FETCH ERROR]', err);
             setBreakdown(null);
           });
       } else {
-        console.warn('[DEBUG DETAIL FRONTEND] Skipping fetch: check-in is not before check-out.');
         setBreakdown(null);
       }
     } else {
-      console.warn('[DEBUG DETAIL FRONTEND] Skipping fetch: missing room, start date, or end date.');
       setBreakdown(null);
     }
   }, [selectedRoom, startDate, endDate, propertyId, data]);
@@ -663,7 +616,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
           
           {/* 1. PROPERTY HEADER INFO */}
           <div>
-            {/* Rating Stars and Reviews top row */}
             <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-indigo-950">
               {(!property.rating || property.rating === 0) ? (
                 <span className="text-slate-400 italic">
@@ -685,20 +637,16 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               )}
             </div>
 
-            {/* Property Name */}
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 font-display tracking-tight mb-3">
               {property.name}
             </h1>
 
-            {/* Dynamic Badges Row */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {/* Verified Badge */}
               <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                 <Shield className="w-3 h-3 text-emerald-600" />
                 {language === 'en' ? 'Verified Property' : 'Properti Terverifikasi'}
               </span>
 
-              {/* Premium Choice Badge (shown based on rating >= 4.7 or custom categories) */}
               {property.rating >= 4.7 && (
                 <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                   <Sparkles className="w-3 h-3 text-indigo-600" />
@@ -706,13 +654,11 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </span>
               )}
 
-              {/* Instant Booking Badge */}
               <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                 <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
                 {language === 'en' ? 'Instant Booking' : 'Pemesanan Instan'}
               </span>
 
-              {/* Super Host Badge */}
               {property.rating >= 4.8 && (
                 <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                   <Star className="w-3 h-3 text-rose-600 fill-rose-500" />
@@ -721,7 +667,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               )}
             </div>
 
-            {/* Location with Icon */}
             <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold">
               <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>{property.location}</span>
@@ -730,7 +675,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
 
           {/* 2. PROPERTY GALLERY WITH THUMBNAILS */}
           <div className="flex flex-col gap-3">
-            {/* Main Featured Photo */}
             <div className="aspect-video bg-slate-100 rounded-3xl overflow-hidden border border-slate-100 shadow-xs relative group">
               <img 
                 src={
@@ -744,7 +688,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
             </div>
 
-            {/* Photo Thumbnails Row */}
             <div className="grid grid-cols-5 gap-3">
               {allImages.slice(0, 5).map((img, idx) => {
                 const isSelected = activeImgIdx === idx;
@@ -783,7 +726,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </h3>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-              {/* Card 1: Verified Property */}
               <div className="p-4 bg-emerald-50/30 border border-emerald-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-emerald-200">
                 <Shield className="w-5 h-5 text-emerald-600" />
                 <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Verified Property' : 'Properti Terverifikasi'}</span>
@@ -792,7 +734,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </p>
               </div>
 
-              {/* Card 2: Instant Booking */}
               <div className="p-4 bg-amber-50/30 border border-amber-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-amber-200">
                 <Zap className="w-5 h-5 text-amber-600 fill-amber-500/20" />
                 <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Instant Booking' : 'Pemesanan Instan'}</span>
@@ -801,7 +742,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </p>
               </div>
 
-              {/* Card 3: Premium Experience */}
               {(property.rating >= 4.7 || property.category?.slug === 'luxury-villas') && (
                 <div className="p-4 bg-indigo-50/30 border border-indigo-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-indigo-200">
                   <Sparkles className="w-5 h-5 text-indigo-600" />
@@ -812,7 +752,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </div>
               )}
 
-              {/* Card 4: High Speed WiFi */}
               {property.amenities?.some(am => am.toLowerCase().includes('wifi') || am.toLowerCase().includes('internet')) && (
                 <div className="p-4 bg-indigo-50/30 border border-indigo-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-indigo-200">
                   <Wifi className="w-5 h-5 text-indigo-600" />
@@ -823,7 +762,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </div>
               )}
 
-              {/* Card 5: Secure Payment */}
               <div className="p-4 bg-blue-50/30 border border-blue-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-blue-200">
                 <CheckCircle className="w-5 h-5 text-blue-600" />
                 <span className="font-extrabold text-xs text-slate-800">{language === 'en' ? 'Secure Payment' : 'Pembayaran Aman'}</span>
@@ -832,7 +770,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </p>
               </div>
 
-              {/* Card 6: Family Friendly */}
               {(property.guests >= 4 || property.beds >= 3) && (
                 <div className="p-4 bg-teal-50/30 border border-teal-100/60 rounded-2xl flex flex-col gap-2 transition-all hover:shadow-xs hover:border-teal-200">
                   <Heart className="w-5 h-5 text-teal-600" />
@@ -967,7 +904,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                           : 'border-slate-100 bg-white hover:border-slate-300 hover:bg-slate-50/30 hover:scale-[1.005]'
                     }`}
                   >
-                    {/* Selected Banner Badge */}
                     {isSelected && (
                       <div className="absolute top-0 right-0 bg-indigo-600 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-bl-xl shadow-xs">
                         {language === 'en' ? 'Selected' : 'Terpilih'}
@@ -1043,64 +979,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
           </div>
 
-          {/* 7. DYNAMIC PRICE CALENDAR */}
-          <div className="border-t border-slate-100 pt-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-1 font-display">
-              {language === 'en' ? 'Price Calendar' : 'Kalender Harga'}
-            </h2>
-            <p className="text-xs text-slate-400 mb-4">
-              {language === 'en' 
-                ? 'Compare prices across dates before determining your stay date.' 
-                : 'Bandingkan harga beberapa hari sebelum menentukan tanggal menginap.'}
-            </p>
-            
-            {/* Horizontal list of cards */}
-            <div className="flex gap-3 overflow-x-auto pb-4 pt-1 scrollbar-none sm:grid sm:grid-cols-5 sm:overflow-x-visible">
-              {getDynamicRates(selectedRoom ? selectedRoom.basePrice : property.basePrice).map((dr) => {
-                const isSelected = startDate === dr.isoDate;
-                return (
-                  <button
-                    key={dr.isoDate}
-                    onClick={() => handleSelectDate(dr.isoDate)}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left border cursor-pointer transition-all duration-250 hover:scale-[1.03] shrink-0 w-[150px] sm:w-auto ${
-                      isSelected 
-                        ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-600/10 shadow-xs' 
-                        : 'border-slate-150 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-455 block uppercase tracking-wider mb-1">
-                        {dr.date}
-                      </span>
-                      <div className="text-base font-black font-display text-indigo-950 mb-2 leading-none">
-                        {formatCurrencyIDR(dr.rate)}
-                      </div>
-                    </div>
-
-                    <div className="mt-2">
-                      <span className={`inline-block text-[8.5px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${dr.badgeClass}`}>
-                        {dr.badge}
-                      </span>
-                      <p className="text-[9px] text-slate-400 leading-tight mt-1">
-                        {dr.label}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2 mt-2">
-              <Info className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
-              <p className="leading-relaxed">
-                {language === 'en' 
-                  ? 'Click on any date card above to automatically update your check-in date in the booking sidebar.' 
-                  : 'Klik pada kartu tanggal di atas untuk memperbarui tanggal check-in secara otomatis di kolom pemesanan.'}
-              </p>
-            </div>
-          </div>
-
-          {/* 8. GUEST REVIEWS */}
+          {/* 7. GUEST REVIEWS */}
           <div className="border-t border-slate-100 pt-6">
             <h2 className="text-lg font-bold text-slate-800 mb-4 font-display">
               {t.propertyDetail.customerReviewsTitle}
@@ -1140,7 +1019,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                           "{rv.comment}"
                         </p>
                         
-                        {/* Host Reply Card / Form Area */}
                         {rv.replyComment ? (
                           <div className="bg-indigo-50/20 p-4 rounded-2xl border-l-4 border-l-indigo-500 border-t border-r border-b border-indigo-100 mt-3.5 ml-4 flex flex-col gap-2 relative">
                             <div className="flex items-center justify-between mb-1">
@@ -1158,7 +1036,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                                 )}
                               </div>
                               
-                              {/* If host owns the property, they can edit or delete this reply */}
                               {user && user.role === 'TENANT' && data?.property && data.property.tenantId === user.id && (
                                 <div className="flex items-center gap-2">
                                   <button
@@ -1185,7 +1062,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                             <p className="text-xs text-slate-600 leading-relaxed italic">"{rv.replyComment}"</p>
                           </div>
                         ) : (
-                          // If NO reply comment yet, and current user is owner tenant, offer "Balas Ulasan"
                           user && user.role === 'TENANT' && data?.property && data.property.tenantId === user.id && replyingReviewId !== rv.id && (
                             <div className="mt-2 ml-4">
                               <button
@@ -1204,7 +1080,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                           )
                         )}
 
-                        {/* Inline Expandable Form (shown if replyingReviewId === rv.id) */}
                         {replyingReviewId === rv.id && (
                           <div className="bg-indigo-50/10 p-4 rounded-xl border border-indigo-100/50 mt-3 ml-4">
                             <span className="text-[11px] font-bold text-indigo-950 block mb-2">
@@ -1250,7 +1125,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   );
                 })}
                 
-                {/* Pagination Controls */}
                 {totalReviews > 5 && (
                   <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-4 font-sans">
                     <button 
@@ -1276,7 +1150,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             )}
           </div>
 
-          {/* 9. LOCATION & SURROUNDINGS */}
+          {/* 8. LOCATION & SURROUNDINGS */}
           {property.location && (
             <div className="border-t border-slate-100 pt-6">
               <h2 className="text-lg font-bold text-slate-800 mb-3 font-display">
@@ -1284,9 +1158,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
-                {/* Map Placeholder */}
                 <div className="md:col-span-7 bg-slate-100 rounded-2xl overflow-hidden border border-slate-150 h-56 relative group shadow-xs">
-                  {/* Styled simulated map */}
                   <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] bg-slate-50 flex items-center justify-center">
                     <div className="text-center p-6 relative z-10">
                       <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2 text-indigo-600 animate-bounce">
@@ -1299,13 +1171,11 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                         {property.address || property.location}
                       </p>
                     </div>
-                    {/* Simulated streets lines */}
                     <div className="absolute inset-0 opacity-10 border-t border-b border-indigo-300 transform -rotate-12 scale-110 pointer-events-none" />
                     <div className="absolute inset-0 opacity-10 border-l border-r border-indigo-300 transform rotate-45 scale-110 pointer-events-none" />
                   </div>
                 </div>
 
-                {/* Nearby landmarks list */}
                 <div className="md:col-span-5 flex flex-col justify-between p-4 bg-slate-50/40 border border-slate-100 rounded-2xl">
                   <div>
                     <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-2">
@@ -1344,7 +1214,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
           )}
 
-          {/* 10. RELATED PROPERTIES (PROPERTI SERUPA) */}
+          {/* 9. RELATED PROPERTIES */}
           {relatedProperties.length > 0 && (
             <div className="border-t border-slate-100 pt-6">
               <h2 className="text-lg font-bold text-slate-800 mb-4 font-display">
@@ -1393,10 +1263,9 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
 
         </div>
 
-        {/* 11. STICKY BOOKING CALCULATOR SIDEBAR COLUMN */}
+        {/* 10. STICKY BOOKING CALCULATOR SIDEBAR COLUMN */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-3xl border border-slate-150 shadow-sm h-fit sticky top-28 self-start flex flex-col gap-5">
-            {/* Top Section */}
             <div>
               <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">
                 {language === 'en' ? 'BOOK YOUR STAY' : 'PILIH TANGGAL MENGINAP'}
@@ -1408,7 +1277,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 📍 {property.location}
               </p>
 
-              {/* Selected Room Indicator Box */}
               <div className="bg-indigo-50/30 p-3.5 rounded-2xl border border-indigo-100 flex items-center gap-3 mb-3.5">
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                   <BedDouble className="w-5 h-5" />
@@ -1421,7 +1289,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </div>
               </div>
 
-              {/* Badges row */}
               <div className="flex flex-wrap gap-1.5">
                 <span className="bg-emerald-50 text-emerald-750 border border-emerald-150 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1">
                   <Shield className="w-2.5 h-2.5" />
@@ -1436,7 +1303,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
 
             <hr className="border-slate-100" />
 
-            {/* Error/Warning area */}
             {(roomUnavailableWarning || (selectedRoom && !isRoomEnabled(selectedRoom))) && (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 font-semibold p-3.5 rounded-2xl text-xs font-sans flex items-start gap-2 animate-in fade-in duration-200">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -1543,7 +1409,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                 </div>
               </div>
 
-              {/* Validation Error Message */}
               {validationError && (
                 <div className="bg-rose-50 border border-rose-150 text-rose-700 rounded-xl p-2.5 text-[11px] font-semibold flex items-center gap-2 animate-in fade-in duration-200">
                   <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
@@ -1562,6 +1427,8 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   activeField={activeCalendarField}
                   setActiveField={setActiveCalendarField}
                   onClose={() => setIsCalendarOpen(false)}
+                  ratesMap={getRatesMapForCalendar()}
+                  basePrice={selectedRoom ? selectedRoom.basePrice : property.basePrice}
                 />
               )}
 
