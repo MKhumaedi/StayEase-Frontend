@@ -1,19 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useLanguage } from '../../../shared/i18n';
-import { formatWithSettings } from '../../../shared/services/dateService';
 import { 
   UserCheck, 
   Search, 
   MapPin, 
-  Phone, 
-  Mail, 
   Clock, 
   CheckCircle2, 
   QrCode, 
   Eye, 
   X, 
-  FileText,
   Scan,
   AlertCircle,
   Calendar,
@@ -27,7 +23,7 @@ import QRCode from 'qrcode';
 import { Html5Qrcode } from 'html5-qrcode';
 
 export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const isValidatingRef = React.useRef(false);
   const { language, formatCurrencyIDR } = useLanguage();
   const [bookings, setBookings] = useState<any[]>([]);
@@ -220,19 +216,30 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
     }
   };
 
+  // =========================================================================
+  // FUNGSI UTAMA ESTRAKSI & VALIDASI QR CODE (TERPERBAIKI)
+  // =========================================================================
   const validateAndShowBooking = async (codeStr: string) => {
+    if (!codeStr) {
+      setQrFileError(language === 'en' ? "QR content is empty." : "Konten QR kosong.");
+      return;
+    }
+
     let decoded = codeStr;
     try { decoded = decodeURIComponent(codeStr); } catch (e) {}
 
-    const cleaned = decoded.trim()
+    // 1. Sanitasi string dari kontrol non-printable
+    const cleanedRaw = decoded
       .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "")
-      .replace(/\r?\n|\r/g, "");
+      .trim();
 
     let extractedCode = '';
 
-    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+    // 2. Coba parse jika formatnya JSON Object
+    const jsonMatch = cleanedRaw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
       try {
-        const parsed = JSON.parse(cleaned);
+        const parsed = JSON.parse(jsonMatch[0]);
         if (parsed && typeof parsed === 'object') {
           const keys = Object.keys(parsed);
           const bkCodeKey = keys.find(k => k.toLowerCase() === 'bookingcode');
@@ -244,32 +251,36 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
       } catch (jsonErr) {}
     }
 
+    // 3. Ekstraksi dari format PDF Multi-baris (e.g. "Booking Code: SE-XXXX")
     if (!extractedCode) {
-      const urlMatch = cleaned.match(/\/checkin\/([A-Za-z0-9-]+)/i) || 
-                      cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
-                      cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
+      const lineMatch = cleanedRaw.match(/Booking\s*Code\s*:\s*([A-Za-z0-9-]+)/i);
+      if (lineMatch && lineMatch[1]) {
+        extractedCode = lineMatch[1];
+      }
+    }
+
+    // 4. Ekstraksi dari URL
+    if (!extractedCode) {
+      const urlMatch = cleanedRaw.match(/\/(?:checkin|bookings|code)\/([A-Za-z0-9-]+)/i);
       if (urlMatch && urlMatch[1]) extractedCode = urlMatch[1];
     }
 
+    // 5. Ekstraksi Regex berdasar Prefix Kode Booking (SE- / BK-)
     if (!extractedCode) {
-      const lineMatch = cleaned.match(/Booking Code:\s*([A-Za-z0-9-]+)/i);
-      if (lineMatch && lineMatch[1]) extractedCode = lineMatch[1];
-    }
-
-    if (!extractedCode) {
-      const genericMatch = cleaned.match(/(SE-[A-Za-z0-9-]+)/i) || 
-                          cleaned.match(/(BK-[A-Za-z0-9-]+)/i) || 
-                          cleaned.match(/(SE-\d+)/i) ||
-                          cleaned.match(/(BK-\d+)/i);
+      const genericMatch = cleanedRaw.match(/(SE-[A-Za-z0-9-]+)/i) || 
+                           cleanedRaw.match(/(BK-[A-Za-z0-9-]+)/i);
       if (genericMatch && genericMatch[1]) extractedCode = genericMatch[1];
     }
 
-    if (!extractedCode) extractedCode = cleaned;
+    // 6. Fallback jika berupa Plain Text
+    if (!extractedCode) {
+      extractedCode = cleanedRaw.split(/\s+/)[0];
+    }
 
     const normalizedCode = extractedCode.trim().toUpperCase();
 
     if (!normalizedCode) {
-      setQrFileError(language === 'en' ? "Please provide a booking code." : "Harap masukkan kode booking.");
+      setQrFileError(language === 'en' ? "Please provide a valid booking code." : "Harap masukkan kode booking yang valid.");
       return;
     }
 
@@ -337,63 +348,12 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
 
   const handleQrDetected = async (text: string) => {
     if (isValidatingRef.current) return;
-    isValidatingRef.current = true;
 
     if (scannerInstance && scannerInstance.isScanning) {
       try { scannerInstance.pause(true); } catch (e) {}
     }
 
-    try {
-      if (!text) throw new Error(language === 'en' ? "QR content is empty." : "Konten QR kosong.");
-
-      let decoded = text;
-      try { decoded = decodeURIComponent(text); } catch (e) {}
-
-      let cleaned = decoded.trim()
-        .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, "")
-        .replace(/\r?\n|\r/g, " ");
-
-      let code = '';
-      const jsonMatch = cleaned.match(/\{.*\}/);
-      if (jsonMatch) {
-        try {
-          const payload = JSON.parse(jsonMatch[0]);
-          if (payload && typeof payload === 'object') {
-            code = payload.bookingCode || payload.code || '';
-          }
-        } catch (jsonErr) {}
-      }
-
-      if (!code) {
-        const urlMatch = cleaned.match(/\/checkin\/([A-Za-z0-9-]+)/i) || 
-                        cleaned.match(/\/bookings\/([A-Za-z0-9-]+)/i) ||
-                        cleaned.match(/\/code\/([A-Za-z0-9-]+)/i);
-        if (urlMatch && urlMatch[1]) code = urlMatch[1];
-      }
-
-      if (!code) {
-        const lineMatch = cleaned.match(/Booking Code:\s*([A-Za-z0-9-]+)/i);
-        if (lineMatch && lineMatch[1]) code = lineMatch[1];
-      }
-
-      if (!code) {
-        const seMatch = cleaned.match(/(SE-[A-Za-z0-9-]+)/i) || cleaned.match(/(SE-\d+)/i);
-        if (seMatch && seMatch[1]) code = seMatch[1];
-      }
-
-      if (!code) code = cleaned;
-
-      const normalizedCode = code.trim().toUpperCase();
-      if (!normalizedCode) throw new Error("Invalid payload format");
-
-      await validateAndShowBooking(normalizedCode);
-    } catch (err: any) {
-      setQrFileError(err.message || "Error parsing QR");
-      isValidatingRef.current = false;
-      if (scannerInstance && scannerInstance.isScanning) {
-        try { scannerInstance.resume(); } catch (e) {}
-      }
-    }
+    await validateAndShowBooking(text);
   };
 
   useEffect(() => {
@@ -1060,7 +1020,7 @@ export default function TodayCheckInPage({ onNavigate }: { onNavigate: (path: st
   );
 }
 
-// 1. KOMPONEN UTAMA DENGAN STRUKTUR REACT HOOK YANG BENAR
+// Komponen Modal Detail Booking
 export function BookingDetailModal({ booking, onClose, language, formatCurrencyIDR }: { booking: any, onClose: () => void, language: string, formatCurrencyIDR: (v: any) => string }) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   
@@ -1153,7 +1113,7 @@ export function BookingDetailModal({ booking, onClose, language, formatCurrencyI
   );
 }
 
-// 2. FUNGSI JAMBATAN AGAR HALAMAN LAIN YANG MASIH MEMANGGIL SEBAGAI FUNGSI TIDAK CRASH
+// Fungsi jembatan untuk kompatibilitas
 export function renderBookingDetailModal(booking: any, onClose: () => void, language: string, formatCurrencyIDR: (v: any) => string) {
   return (
     <BookingDetailModal 

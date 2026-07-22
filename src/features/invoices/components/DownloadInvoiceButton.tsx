@@ -13,7 +13,8 @@ export function DownloadInvoiceButton({ bookingId, status }: Props) {
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const isAllowed = status === 'CONFIRMED' || status === 'COMPLETED';
+  // Perbaikan: Masukkan status CHECKED_IN agar tamu yang sedang menginap tetap bisa unduh invoice
+  const isAllowed = status === 'CONFIRMED' || status === 'CHECKED_IN' || status === 'COMPLETED';
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -53,7 +54,7 @@ export function DownloadInvoiceButton({ bookingId, status }: Props) {
 
       {toastMsg && (
         <div className="fixed bottom-6 right-6 bg-slate-900 border border-slate-800 text-slate-100 text-[11px] font-bold py-3.5 px-4.5 rounded-2xl shadow-xl flex items-center gap-2.5 z-50 animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>{toastMsg}</span>
         </div>
       )}

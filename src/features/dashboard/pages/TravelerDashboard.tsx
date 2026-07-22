@@ -137,7 +137,7 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
               : 'Pemesanan berstatus MENUNGGU akan diproses dalam waktu 30 menit. Pastikan pengiriman dana transfer bank sesuai dengan nominal checkout agar reservasi lancar.'}
           </p>
           <div className="p-3 border rounded-xl text-[11px] font-bold text-slate-600 leading-relaxed mb-4">
-            {language === 'en' ? 'Need support? Call our Elite support desk available 24/7' : 'Perlu bantuan? Telpon layanan pelanggan 24/7 kami di'} <span className="text-indigo-950 block mt-0.5 font-black">+1-800-STAY-EASE</span>
+            {language === 'en' ? 'Need support? Call our Elite support desk available 24/7' : 'Perlu bantuan? Telpon layanan pelanggan 24/7 kami di'} <span className="text-indigo-950 block mt-0.5 font-black">+62 831 204795 94</span>
           </div>
         </div>
       </div>

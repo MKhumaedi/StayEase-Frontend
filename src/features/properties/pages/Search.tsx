@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Property } from '../../../types';
-import { Star, SlidersHorizontal, ArrowUpDown, X, Loader2, SearchX, Calendar, Moon, Users, Search as SearchIcon, Heart, Sparkles } from 'lucide-react';
+import { Star, SlidersHorizontal, ArrowUpDown, X, Loader2, Calendar, Moon, Users, Search as SearchIcon, Heart, Sparkles } from 'lucide-react';
 import { useLanguage } from '../../../shared/i18n';
 import { usePropertyFilterOptions } from '../../../hooks/usePropertyFilterOptions';
 import { useWishlist } from '../../../shared/context/WishlistContext';
@@ -15,6 +15,15 @@ interface SearchProps {
   initialGuests?: number | string;
   onNavigate: (path: string, params?: any) => void;
 }
+
+// Helper untuk mengambil tanggal hari ini dalam format YYYY-MM-DD secara presisi
+const getTodayString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function Search({ 
   initialLocation = 'All', 
@@ -36,6 +45,8 @@ export default function Search({
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const todayStr = getTodayString();
+
   // 1. Parse initial values from URL on mount first, with prop fallbacks
   const urlParams = new URL(window.location.href).searchParams;
   
@@ -52,7 +63,13 @@ export default function Search({
     return uAmen ? uAmen.split(',') : [];
   });
   
-  const [checkIn, setCheckIn] = useState(() => urlParams.get('checkIn') || initialCheckIn);
+  // Tanggal Check-In: Apabila tanggal dari URL/Prop terlewat, set otomatis ke hari ini
+  const [checkIn, setCheckIn] = useState(() => {
+    const paramVal = urlParams.get('checkIn') || initialCheckIn;
+    if (paramVal && paramVal < todayStr) return todayStr;
+    return paramVal;
+  });
+
   const [duration, setDuration] = useState(() => urlParams.get('duration') || String(initialDuration || ''));
   const [guests, setGuests] = useState(() => urlParams.get('guests') || String(initialGuests || ''));
   
@@ -195,6 +212,16 @@ export default function Search({
     setCurrentPage(1);
   };
 
+  // Validasi agar tanggal tidak bisa mundur dari hari ini
+  const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedVal = e.target.value;
+    if (selectedVal && selectedVal < todayStr) {
+      setCheckIn(todayStr);
+    } else {
+      setCheckIn(selectedVal);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
@@ -244,15 +271,16 @@ export default function Search({
             </select>
           </div>
 
-          {/* Check-In Date */}
+          {/* Check-In Date (DINAMIS & BATASAN MINIMAL HARI INI) */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-400" /> {language === 'en' ? 'Check-In Date' : 'Tanggal Check-In'}
             </h3>
             <input 
               type="date" 
+              min={todayStr}
               value={checkIn} 
-              onChange={e => setCheckIn(e.target.value)} 
+              onChange={handleCheckInChange} 
               className="w-full bg-slate-50 border border-slate-200 text-sm font-semibold rounded-lg p-2.5 focus:outline-hidden focus:border-indigo-400 transition-all cursor-pointer"
             />
           </div>
@@ -463,14 +491,14 @@ export default function Search({
                         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4">{p.description}</p>
                       </div>
                       <div className="border-t border-slate-50 pt-3">
-                        {p.peakMultiplier > 1 && (
+                        {(p.peakMultiplier ?? 1) > 1 && (
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
                               <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-500 animate-pulse" />
                               {language === 'en' ? 'Holiday Season' : 'Musim Liburan'}
                             </span>
                             {p.peakSeasonName && (
-                              <span className="text-[9px] text-amber-600 font-semibold truncate max-w-[120px]">
+                              <span className="text-[9px] text-amber-600 font-semibold truncate max-w-30">
                                 {p.peakSeasonName}
                               </span>
                             )}
@@ -478,8 +506,8 @@ export default function Search({
                         )}
                         <div className="flex items-center justify-between">
                           <div className="text-xs font-black text-indigo-950 font-display">
-                            {p.peakMultiplier > 1 && p.originalBasePrice && (
-                              <span className="text-[10px] text-slate-305 text-slate-400 line-through font-normal mr-1.5 block leading-none mb-0.5">
+                            {(p.peakMultiplier ?? 1) > 1 && p.originalBasePrice && (
+                              <span className="text-[10px] text-slate-400 line-through font-normal mr-1.5 block leading-none mb-0.5">
                                 {formatCurrencyIDR(p.originalBasePrice)}
                               </span>
                             )}

@@ -28,6 +28,25 @@ interface PropertyWizardModalProps {
   onSaveDraft?: () => void;
 }
 
+// Helper untuk mengambil tanggal hari ini dan besok (YYYY-MM-DD) secara presisi
+const getTodayAndTomorrowDates = () => {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  const formatDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    todayStr: formatDate(today),
+    tomorrowStr: formatDate(tomorrow)
+  };
+};
+
 export function PropertyWizardModal({
   isOpen,
   categories,
@@ -43,6 +62,9 @@ export function PropertyWizardModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  // Tanggal Dinamis untuk Kalkulasi Quote
+  const { todayStr, tomorrowStr } = getTodayAndTomorrowDates();
 
   // Draft and Auto-Save States
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -330,7 +352,6 @@ export function PropertyWizardModal({
   const fail = (msg: string) => { setErrorMsg(msg); return false; };
   
   const handleStepSelect = (stepNum: number) => {
-    // Validate current step before switching to a higher step
     if (stepNum > currentStep) {
       for (let s = currentStep; s < stepNum; s++) {
         if (!validateStep(s)) return;
@@ -355,16 +376,13 @@ export function PropertyWizardModal({
     setSubmitting(true);
     setErrorMsg('');
     try {
-      // Mark as published on submit
       const finalForm = {
         ...form,
         status: 'PUBLISHED'
       };
       await onSubmit(finalForm);
 
-      // Clean up the draft now that it's published
       if (draftId) {
-        // Delete from backend database
         fetch(`/api/properties/${draftId}`, {
           method: 'DELETE',
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -395,7 +413,6 @@ export function PropertyWizardModal({
     }
   };
 
-  // Setup sidebar step list details
   const steps = [
     { number: 1, labelEn: 'Basic Information', labelId: 'Informasi Dasar', icon: Building },
     { number: 2, labelEn: 'Location Specification', labelId: 'Spesifikasi Lokasi', icon: MapPin },
@@ -407,14 +424,14 @@ export function PropertyWizardModal({
     { number: 8, labelEn: 'Publish & Preview', labelId: 'Tinjau & Publikasi', icon: Eye }
   ];
 
-  // Live Metrics Calculations using Centralized PricingService for 1 night
+  // Live Metrics Calculations using Centralized PricingService with Dynamic Dates (Today -> Tomorrow)
   const pricingInput = {
     basePrice: form.basePrice || 0,
     cleaningFee: form.cleaningFee || 0,
     serviceFee: form.serviceFee || 0,
     peakSeasonRates: []
   };
-  const quote = PricingService.calculateQuote(pricingInput, null, '2026-10-12', '2026-10-13');
+  const quote = PricingService.calculateQuote(pricingInput, null, todayStr, tomorrowStr);
 
   const basePrice = quote.nightlyRate;
   const cleaningFee = quote.cleaningFee;
@@ -423,11 +440,8 @@ export function PropertyWizardModal({
 
   const estimatedTax = quote.tax;
   const guestInvoiceTotal = quote.total;
-  
-  // Host net takehome revenue: pricing minus commission or default channel fees (basePrice + cleaningFee minus any default parameter)
   const estimatedHostEarnings = (quote.subtotal + cleaningFee);
 
-  // Selected Category representation
   const selectedCategory = categories.find(c => c.id === form.categoryId);
 
   return (
@@ -438,7 +452,7 @@ export function PropertyWizardModal({
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
-            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-[920px] md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-[1440px] xl:max-w-[1520px] md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300"
+            className="bg-white flex flex-col justify-between w-full h-full md:h-[90vh] md:max-h-[920px] md:w-[94vw] lg:w-[90vw] xl:w-[88vw] md:max-w-[1440px] xl:max-w-[1520px] md:rounded-3xl border border-slate-150 shadow-2xl relative overflow-hidden transition-all duration-300 font-sans"
           >
             {/* Modal Master Header (Enterprise Status Style) */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
@@ -448,7 +462,7 @@ export function PropertyWizardModal({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-850 text-sm tracking-tight">
+                    <h3 className="font-bold text-slate-850 text-sm tracking-tight font-display">
                       {editingProperty 
                         ? (language === 'en' ? 'Property Extranet Workspace' : 'Workspace Ekstranet Properti')
                         : (language === 'en' ? 'New Asset Onboarding' : 'Pendaftaran Aset Hunian Baru')}
@@ -519,7 +533,7 @@ export function PropertyWizardModal({
                         key={s.number}
                         type="button"
                         onClick={() => handleStepSelect(s.number)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold transition-all border outline-none cursor-pointer ${
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold transition-all border outline-hidden cursor-pointer ${
                           isActive 
                             ? 'bg-white border-slate-200 text-indigo-950 shadow-xs' 
                             : isCompleted
@@ -562,12 +576,12 @@ export function PropertyWizardModal({
                 <div className="max-w-3xl mx-auto space-y-1 pb-10">
                   {currentStep === 1 && <WizardStep1 form={form} categories={categories} onChange={handleInputChange} />}
                   {currentStep === 2 && <WizardStep2 form={form} setForm={setForm} onChange={handleInputChange} />}
-                  {currentStep === 3 && <WizardStep4 form={form} setForm={setForm} />} {/* Amenities */}
-                  {currentStep === 4 && <WizardStep3 form={form} setForm={setForm} />} {/* Media */}
-                  {currentStep === 5 && <WizardStepRoomConfig form={form} setForm={setForm} />} {/* Room Configuration */}
-                  {currentStep === 6 && <WizardStep5 form={form} setForm={setForm} />} {/* Pricing & Fees */}
-                  {currentStep === 7 && <WizardStep6 form={form} setForm={setForm} />} {/* Calendar blocks */}
-                  {currentStep === 8 && <WizardStep7 form={form} categories={categories} />} {/* Publish */}
+                  {currentStep === 3 && <WizardStep4 form={form} setForm={setForm} />}
+                  {currentStep === 4 && <WizardStep3 form={form} setForm={setForm} />}
+                  {currentStep === 5 && <WizardStepRoomConfig form={form} setForm={setForm} />}
+                  {currentStep === 6 && <WizardStep5 form={form} setForm={setForm} />}
+                  {currentStep === 7 && <WizardStep6 form={form} setForm={setForm} />}
+                  {currentStep === 8 && <WizardStep7 form={form} categories={categories} />}
                 </div>
               </div>
 
@@ -587,7 +601,7 @@ export function PropertyWizardModal({
                   </div>
 
                   {/* Thumbnail display card */}
-                  <div className="bg-white border border-slate-150 rounded-2xl p-3 shadow-xs space-y-3 shrink-0">
+                  <div className="bg-white border border-slate-150 rounded-2xl p-3 shadow-2xs space-y-3 shrink-0">
                     <div className="aspect-[4/3] rounded-xl bg-slate-100 overflow-hidden relative border border-slate-50">
                       {form.imageUrls && form.imageUrls.length > 0 ? (
                         <img 
@@ -604,14 +618,14 @@ export function PropertyWizardModal({
                       )}
                       
                       {selectedCategory && (
-                        <span className="absolute top-2.5 left-2.5 text-[9px] font-black uppercase text-indigo-950 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded shadow-xs leading-none">
+                        <span className="absolute top-2.5 left-2.5 text-[9px] font-black uppercase text-indigo-950 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded shadow-2xs leading-none">
                           {selectedCategory.name}
                         </span>
                       )}
                     </div>
 
                     <div className="space-y-1">
-                      <h4 className="font-bold text-slate-900 border-none text-xs line-clamp-1">
+                      <h4 className="font-bold text-slate-900 border-none text-xs line-clamp-1 font-display">
                         {form.name || (language === 'en' ? 'Unnamed Draft stay' : 'Draf Hunian Tanpa Nama')}
                       </h4>
                       <p className="text-[10.5px] text-slate-450 font-semibold line-clamp-1 leading-normal flex items-center gap-1 select-none">
@@ -645,32 +659,32 @@ export function PropertyWizardModal({
                   </div>
 
                   {/* Financial Ledgers details */}
-                  <div className="space-y-3 bg-white border border-slate-150 rounded-2xl p-4 shadow-xs">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 border-b border-slate-50 pb-2 select-none">
-                      <Receipt className="w-3.5 h-3.5 text-slate-500" />
+                  <div className="space-y-3 bg-white border border-slate-150 rounded-2xl p-4 shadow-2xs">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 border-b border-slate-50 pb-2 select-none font-display">
+                      <Receipt className="w-3.5 h-3.5 text-indigo-600" />
                       {language === 'en' ? 'Revenue breakdown' : 'Distribusi Pendapatan'}
                     </span>
                     
                     <div className="space-y-2 text-[11px] text-slate-600 leading-normal">
                       <div className="flex items-center justify-between">
                         <span>{language === 'en' ? 'Base Stay Rate' : 'Harga Dasar Sewa'}</span>
-                        <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(basePrice)}</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(basePrice)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{language === 'en' ? 'Cleaning Surcharge' : 'Biaya Kebersihan'}</span>
-                        <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(cleaningFee)}</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(cleaningFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{language === 'en' ? 'StayEase System Fee' : 'Biaya Layanan Jasa'}</span>
-                        <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(serviceFee)}</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(serviceFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{language === 'en' ? 'Escrow Room Deposit' : 'Deposit Jaminan'}</span>
-                        <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(securityDeposit)}</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(securityDeposit)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{language === 'en' ? 'Estimated Stays Tax (10%)' : 'PPN / Pajak Daerah (10%)'}</span>
-                        <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(estimatedTax)}</span>
+                        <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(estimatedTax)}</span>
                       </div>
 
                       {/* Guest Grand Bill Rate */}
@@ -679,7 +693,7 @@ export function PropertyWizardModal({
                           <span className="font-bold text-slate-800 text-xs">
                             {language === 'en' ? 'Guest Invoice' : 'Total Tagihan Tamu'}
                           </span>
-                          <span className="text-xs font-black text-blue-600 font-mono">
+                          <span className="text-xs font-black text-indigo-600 font-mono">
                             {formatCurrencyIDR(guestInvoiceTotal)}
                           </span>
                         </div>
@@ -692,7 +706,7 @@ export function PropertyWizardModal({
                 </div>
 
                 {/* Sticky Host Net takehome earnings badge */}
-                <div className="bg-emerald-500 text-white rounded-2xl p-4 shadow-sm select-none mt-4 shrink-0 space-y-1 border border-emerald-450">
+                <div className="bg-emerald-600 text-white rounded-2xl p-4 shadow-2xs select-none mt-4 shrink-0 space-y-1 border border-emerald-500">
                   <span className="text-[9px] font-black uppercase text-emerald-100 tracking-widest block">
                     {language === 'en' ? 'Estimated Host Earnings' : 'Estimasi Bersih Penerimaan Hos'}
                   </span>
@@ -714,7 +728,7 @@ export function PropertyWizardModal({
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-755 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
                 >
                   <ChevronLeft className="w-4 h-4 text-slate-600" />
                   {language === 'en' ? 'Back' : 'Kembali'}
@@ -730,7 +744,7 @@ export function PropertyWizardModal({
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                    className="px-4 py-2 bg-indigo-950 hover:bg-indigo-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
                   >
                     {language === 'en' ? 'Continue' : 'Lanjutkan'}
                     <ChevronRight className="w-4 h-4 text-white" />
@@ -740,7 +754,7 @@ export function PropertyWizardModal({
                     type="button"
                     onClick={handleFinish}
                     disabled={submitting}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-755 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-60 transition-colors"
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-60 transition-colors"
                   >
                     {submitting ? (
                       <>
@@ -767,7 +781,7 @@ export function PropertyWizardModal({
           <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs select-none">
             <div className="bg-white rounded-3xl w-full max-w-md p-6 border border-slate-100 shadow-2xl space-y-4">
               <div className="text-left space-y-2">
-                <div className="p-3 bg-amber-50 text-amber-650 rounded-2xl w-fit border border-amber-100">
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl w-fit border border-amber-100">
                   <AlertTriangle className="w-6 h-6 text-amber-600" />
                 </div>
                 <h4 className="font-extrabold text-slate-900 font-display text-base">
@@ -805,9 +819,7 @@ export function PropertyWizardModal({
                 {/* Discard Draft (Danger Action) */}
                 <button 
                   onClick={() => {
-                    // Discard
                     if (draftId) {
-                      // Delete from backend database
                       fetch(`/api/properties/${draftId}`, {
                         method: 'DELETE',
                         headers: token ? { 'Authorization': `Bearer ${token}` } : {}

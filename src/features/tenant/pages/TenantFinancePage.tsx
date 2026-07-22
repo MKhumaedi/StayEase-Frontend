@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useLanguage } from '../../../shared/i18n';
 import { 
@@ -16,7 +17,8 @@ import {
   DownloadCloud, 
   FileText,
   BadgeAlert,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { parseProof } from '../../tenant-payments/pages/TenantPaymentsPage';
 
@@ -36,6 +38,11 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  useEffect(() => {
+    setError(null);
+  }, [activeTab]);
+
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProof, setSelectedProof] = useState<string | null>(null);
@@ -47,32 +54,104 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
   const [isSettling, setIsSettling] = useState(false);
   const [settledSuccess, setSettledSuccess] = useState(false);
 
-  // Real withdrawals states
-  const [tenantBalance, setTenantBalance] = useState<number>(0);
-  const [bankDetails, setBankDetails] = useState({ bankName: 'BCA', accountNumber: '8291-0391-77', accountName: user?.name || '' });
+  // Real withdrawals states & Bank details
+  const [bankDetails, setBankDetails] = useState({ bankName: 'Bank Mandiri', accountNumber: '8291-0391-77', accountName: user?.name || 'M KHUMAEDI' });
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawNotes, setWithdrawNotes] = useState('');
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
 
+  // State Popup Modal Konfirmasi Ekspor
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const executeExportCashbookXLSX = () => {
+    if (!bookings || bookings.length === 0) {
+      alert(language === 'en' ? 'No transaction records to export.' : 'Tidak ada data riwayat transaksi untuk diekspor.');
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const sheetData: any[][] = [
+      ['Revenue Performance Report - StayEase'],
+      [],
+      ['Company:', 'StayEase Property Management', '', 'Export Date:', todayStr],
+      ['Report Period:', 'All Recorded Transactions', '', 'Filter Property:', 'All Listed Properties'],
+      [],
+      [
+        'Date',
+        'Booking Code',
+        'Guest Name',
+        'Property',
+        'Payment Method',
+        'Provider',
+        'Payment Status',
+        'Total Paid (IDR)'
+      ]
+    ];
+
+    let totalAmountSum = 0;
+
+    bookings.forEach(b => {
+      const isMidtr = b.paymentProof?.proofUrl?.includes('midtrans');
+      const payMethod = isMidtr ? 'Midtrans' : b.paymentProof ? 'Manual Transfer' : 'None';
+      const payProvider = isMidtr ? 'SNAP Online' : b.paymentProof ? 'Bank Transfer' : '-';
+      const paidAtDate = b.paymentProof?.createdAt 
+        ? new Date(b.paymentProof.createdAt).toLocaleDateString('id-ID') 
+        : ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status)
+          ? new Date(b.updatedAt).toLocaleDateString('id-ID') 
+          : '-';
+
+      const amount = Number(b.totalAmount) || 0;
+      totalAmountSum += amount;
+
+      sheetData.push([
+        paidAtDate,
+        b.bookingCode || '-',
+        b.guestName || '-',
+        b.property?.name || 'StayEase Listing',
+        payMethod,
+        payProvider,
+        b.status || '-',
+        amount
+      ]);
+    });
+
+    sheetData.push([
+      '', '', '', '', '', '', 'TOTAL REVENUE:', totalAmountSum
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 28 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 20 }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
+
+    const today = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `StayEase_Revenue_Report_${today}.xlsx`);
+
+    setShowExportModal(false);
+  };
+
   const fetchTenantWithdrawalData = async () => {
     try {
       const authHeader: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
       
-      // 1. Fetch balance & bank info
-      const balRes = await fetch('/api/withdrawals/tenant/balance', { headers: authHeader });
-      if (balRes.ok) {
-        const balData = await balRes.json();
-        if (balData.success) {
-          setTenantBalance(balData.credits);
-          if (balData.bankDetails && balData.bankDetails.bankName) {
-            setBankDetails(balData.bankDetails);
-          }
-        }
-      }
-
-      // 2. Fetch withdrawal requests history
       const listRes = await fetch('/api/withdrawals/tenant/list', { headers: authHeader });
       if (listRes.ok) {
         const listData = await listRes.json();
@@ -82,56 +161,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
       }
     } catch (err) {
       console.error('Error fetching tenant withdrawal data:', err);
-    }
-  };
-
-  const handleRequestWithdrawal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = Number(withdrawAmount);
-    if (!amount || isNaN(amount) || amount <= 0) {
-      setError(en ? 'Please enter a valid amount' : 'Jumlah penarikan tidak valid');
-      return;
-    }
-    if (amount > tenantBalance) {
-      setError(en ? 'Amount exceeds available balance' : 'Jumlah penarikan melebihi saldo tersedia');
-      return;
-    }
-
-    setIsSubmittingWithdraw(true);
-    try {
-      const authHeader: HeadersInit = token ? { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      } : {};
-      const res = await fetch('/api/withdrawals/tenant/request', {
-        method: 'POST',
-        headers: authHeader,
-        body: JSON.stringify({
-          amount,
-          fee: 5000, // flat Rp 5,000 interbank fee
-          bankName: bankDetails.bankName,
-          accountName: bankDetails.accountName,
-          accountNumber: bankDetails.accountNumber,
-          notes: withdrawNotes
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to request withdrawal');
-      }
-
-      // Success
-      setSettledSuccess(true);
-      setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      setWithdrawNotes('');
-      await fetchTenantWithdrawalData();
-      setTimeout(() => setSettledSuccess(false), 5000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmittingWithdraw(false);
     }
   };
 
@@ -162,6 +191,85 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
     }, 5000);
     return () => clearInterval(interval);
   }, [token]);
+
+  // Split calculations (Sertakan CONFIRMED, CHECKED_IN, dan COMPLETED)
+  const midtransBookings = bookings.filter(b => b.paymentProof?.proofUrl?.includes('midtrans') || !b.paymentProof);
+  const manualBookings = bookings.filter(b => b.paymentProof?.proofUrl && !b.paymentProof.proofUrl.includes('midtrans'));
+
+  const midtransTotal = midtransBookings
+    .filter(b => ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status))
+    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+
+  const manualTotal = manualBookings
+    .filter(b => ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status))
+    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
+
+  const pendingManualReviewCount = bookings.filter(b => {
+    const proof = parseProof(b.paymentProof?.proofUrl);
+    return proof.status === 'PENDING' && b.status === 'WAITING_CONFIRMATION';
+  }).length;
+
+  const totalRevenue = midtransTotal + manualTotal;
+  const serviceFees = Math.round(midtransTotal * 0.02);
+  const netSettled = totalRevenue - serviceFees;
+
+  const totalWithdrawnAmount = withdrawals
+    .filter(w => w.status === 'PAID' || w.status === 'APPROVED' || w.status === 'PENDING')
+    .reduce((sum, w) => sum + (Number(w.netAmount) || Number(w.amount) || 0), 0);
+
+  const tenantBalance = Math.max(0, netSettled - totalWithdrawnAmount);
+
+  const handleRequestWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const amount = Number(withdrawAmount);
+    if (!amount || isNaN(amount) || amount <= 0) {
+      setError(en ? 'Please enter a valid amount' : 'Jumlah penarikan tidak valid');
+      return;
+    }
+    if (amount > tenantBalance) {
+      setError(en ? `Insufficient balance. Available: ${formatCurrencyIDR(tenantBalance)}` : `Saldo tidak mencukupi. Saldo Anda: ${formatCurrencyIDR(tenantBalance)}`);
+      return;
+    }
+
+    setIsSubmittingWithdraw(true);
+    try {
+      const authHeader: HeadersInit = token ? { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      } : {};
+      const res = await fetch('/api/withdrawals/tenant/request', {
+        method: 'POST',
+        headers: authHeader,
+        body: JSON.stringify({
+          amount,
+          fee: 5000,
+          bankName: bankDetails.bankName,
+          accountName: bankDetails.accountName,
+          accountNumber: bankDetails.accountNumber,
+          notes: withdrawNotes
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to request withdrawal');
+      }
+
+      setSettledSuccess(true);
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      setWithdrawNotes('');
+      setError(null);
+      await fetchTenantWithdrawalData();
+      setTimeout(() => setSettledSuccess(false), 5000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmittingWithdraw(false);
+    }
+  };
 
   const handleAction = async (endpoint: string, method = 'POST', body?: any) => {
     try {
@@ -196,42 +304,11 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
     handleAction(`${rejectId}/reject`, 'POST', { reason: reasonInput.trim() });
   };
 
-  const triggerSettlement = () => {
-    setIsSettling(true);
-    setTimeout(() => {
-      setIsSettling(false);
-      setSettledSuccess(true);
-      setTimeout(() => setSettledSuccess(false), 4000);
-    }, 1200);
-  };
-
-  // Split calculations
-  const midtransBookings = bookings.filter(b => b.paymentProof?.proofUrl?.includes('midtrans') || !b.paymentProof);
-  const manualBookings = bookings.filter(b => b.paymentProof?.proofUrl && !b.paymentProof.proofUrl.includes('midtrans'));
-
-  const midtransTotal = midtransBookings
-    .filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-
-  const manualTotal = manualBookings
-    .filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-    .reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0);
-
-  const pendingManualReviewCount = bookings.filter(b => {
-    const proof = parseProof(b.paymentProof?.proofUrl);
-    return proof.status === 'PENDING' && b.status === 'WAITING_CONFIRMATION';
-  }).length;
-
-  const totalRevenue = midtransTotal + manualTotal;
-  const serviceFees = Math.round(midtransTotal * 0.02); // 2% Midtrans processing fee
-  const netSettled = totalRevenue - serviceFees;
-
   const en = language === 'en';
 
   return (
     <div className="flex flex-col gap-6 font-sans text-slate-800">
       
-      {/* Header operations area */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 gap-4">
         <div>
           <h2 className="text-xl font-bold text-indigo-950 font-display">
@@ -244,13 +321,16 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
           </p>
         </div>
         {activeTab === 'revenue' && (
-          <button className="text-xs bg-indigo-900 text-white font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-slate-900 cursor-pointer shadow-xs transition-all">
-            <DownloadCloud className="w-4 h-4" /> {en ? 'Export General Ledger (CSV)' : 'Ekspor Buku Kas (CSV)'}
+          <button 
+            type="button"
+            onClick={() => setShowExportModal(true)}
+            className="text-xs bg-indigo-900 text-white font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-slate-900 cursor-pointer shadow-xs transition-all"
+          >
+            <DownloadCloud className="w-4 h-4" /> {en ? 'Export General Ledger (.XLSX)' : 'Ekspor Buku Kas (.XLSX)'}
           </button>
         )}
       </div>
 
-      {/* Top level stats belt */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-120 flex items-center justify-between shadow-xs">
           <div>
@@ -301,7 +381,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
         </div>
       </div>
 
-      {/* Segmented Horizontal Tabs */}
       <div className="flex bg-slate-100 p-1 rounded-2xl w-full sm:w-fit self-center border border-slate-200/50">
         {[
           { id: 'midtrans', name: en ? 'Midtrans Payments' : 'Gerbang Online Midtrans' },
@@ -334,10 +413,8 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
         </div>
       )}
 
-      {/* Main rendering block */}
       <div className="bg-white rounded-2xl border border-slate-100 p-1 shadow-2xs">
         
-        {/* TAB 1: Midtrans Payments */}
         {activeTab === 'midtrans' && (
           <div className="p-4 flex flex-col gap-4">
             <div className="flex justify-between items-start mb-2">
@@ -404,8 +481,8 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                             <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-black tracking-wide uppercase">MIDTRANS SNAP</span>
                           </td>
                           <td className="p-3 text-center">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${b.status === 'CONFIRMED' || b.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                              {b.status === 'CONFIRMED' ? 'Paid' : b.status}
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {b.status}
                             </span>
                           </td>
                         </tr>
@@ -418,7 +495,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
           </div>
         )}
 
-        {/* TAB 2: Manual Transfers (The receipt review section) */}
         {activeTab === 'manual' && (
           <div className="p-4 flex flex-col gap-4">
             <div className="flex justify-between items-start mb-2">
@@ -457,7 +533,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                     {manualBookings.map((b, idx) => {
                       const proof = parseProof(b.paymentProof?.proofUrl);
                       const isPending = b.status === 'WAITING_CONFIRMATION';
-                      const isApproved = b.status === 'CONFIRMED' || b.status === 'COMPLETED';
+                      const isApproved = ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status);
                       const isRejected = b.status === 'WAITING_PAYMENT' && proof.status === 'REJECTED';
                       return (
                         <tr key={`${b.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
@@ -514,7 +590,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
           </div>
         )}
 
-        {/* TAB 3: Settlements (Pencairan Dana) */}
         {activeTab === 'settlements' && (
           <div className="p-6 flex flex-col gap-6">
             <div>
@@ -524,28 +599,27 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
               <p className="text-[11px] text-slate-500 leading-relaxed max-w-2xl">
                 {en 
                   ? 'All funds received from platform bookings are settled to your listed bank account. Request withdrawal below to disburse your current credits.' 
-                  : 'Seluruh dana yang masuk dari reservasi tamu yang telah selesai dapat ditarik langsung ke rekening bank terdaftar Anda melalui pengajuan penarikan dana di bawah.'}
+                  : 'Seluruh dana yang masuk dari reservasi tamu dapat ditarik langsung ke rekening bank terdaftar Anda melalui pengajuan penarikan dana di bawah.'}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
-              {/* Account summary left side */}
               <div className="md:col-span-2 bg-slate-50 p-5 rounded-2xl border border-slate-200/60 flex flex-col gap-4">
                 <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400 block">{en ? 'Designated Payee Bank Profile' : 'Profil Bank Penerima Manfaat'}</span>
                 
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Bank Institution</span>
-                    <strong className="text-slate-800 text-sm">{bankDetails.bankName || 'BCA'}</strong>
+                    <strong className="text-slate-800 text-sm">{bankDetails.bankName}</strong>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Account Number</span>
-                    <strong className="text-slate-800 text-sm font-mono tracking-wider">{bankDetails.accountNumber || '8291-0391-77'}</strong>
+                    <strong className="text-slate-800 text-sm font-mono tracking-wider">{bankDetails.accountNumber}</strong>
                   </div>
                   <div className="col-span-2">
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Account Holder Name</span>
-                    <strong className="text-slate-800 text-sm block uppercase mt-0.5">{bankDetails.accountName || user?.name}</strong>
+                    <strong className="text-slate-800 text-sm block uppercase mt-0.5">{bankDetails.accountName}</strong>
                   </div>
                 </div>
 
@@ -565,7 +639,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 </div>
               </div>
 
-              {/* Settlement trigger right side */}
               <div className="bg-slate-900 text-white p-5 rounded-2xl flex flex-col justify-between gap-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
                 
@@ -600,7 +673,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
             </div>
 
-            {/* Withdrawal History Section */}
             <div className="border-t border-slate-100 pt-6 mt-4">
               <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider mb-3">
                 {en ? 'Withdrawal History' : 'Riwayat Penarikan Dana'}
@@ -643,7 +715,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                               w.status === 'APPROVED' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                               w.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                               w.status === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                              'bg-slate-50 text-slate-650'
+                              'bg-slate-50 text-slate-655'
                             }`}>
                               {w.status}
                             </span>
@@ -671,7 +743,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
           </div>
         )}
 
-        {/* TAB 4: Revenue Records (Arsip Pembukuan) */}
         {activeTab === 'revenue' && (
           <div className="p-4 flex flex-col gap-4">
             <div className="flex justify-between items-start mb-2">
@@ -714,7 +785,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                       const payProvider = isMidtr ? 'SNAP Online' : b.paymentProof ? 'Bank Transfer' : '-';
                       const paidAtTime = b.paymentProof?.createdAt 
                         ? new Date(b.paymentProof.createdAt).toLocaleString() 
-                        : (b.status === 'CONFIRMED' || b.status === 'COMPLETED') 
+                        : ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status)
                           ? new Date(b.updatedAt).toLocaleString() 
                           : '-';
                       return (
@@ -737,7 +808,7 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                           <td className="p-3 text-indigo-950 font-extrabold">{formatCurrencyIDR(b.totalAmount)}</td>
                           <td className="p-3 text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                              b.status === 'CONFIRMED' || b.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                              ['CONFIRMED', 'CHECKED_IN', 'COMPLETED'].includes(b.status) ? 'bg-emerald-100 text-emerald-800' :
                               b.status === 'CANCELLED' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
                             }`}>
                               {b.status}
@@ -756,7 +827,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
 
       </div>
 
-      {/* Proof Modal Overlay */}
       {selectedProof && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in animate-duration-150">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 border shadow-2xl relative">
@@ -771,7 +841,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
         </div>
       )}
 
-      {/* Rejection Modal dialog */}
       {rejectId && (
         <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <form onSubmit={handleRejectSubmit} className="bg-white rounded-3xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl">
@@ -792,7 +861,78 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
         </div>
       )}
 
-      {/* Withdrawal Confirmation Dialog Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative overflow-hidden flex flex-col gap-5">
+            
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 font-display">
+                    {en ? 'Confirm Export Cashbook' : 'Konfirmasi Ekspor Buku Kas'}
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-400 leading-none mt-0.5">
+                    {en ? 'General Ledger Report (.XLSX Modern)' : 'Laporan Keuangan Modern Excel (.XLSX)'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 text-xs text-slate-600">
+              <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                {en 
+                  ? 'You are about to export the current financial ledger transaction history to a modern Microsoft Excel workbook (.XLSX).'
+                  : 'Anda akan mengunduh laporan riwayat transaksi pendapatan dan invoice dalam format file Excel modern (.XLSX).'}
+              </p>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-150 flex flex-col gap-2 font-semibold">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400">{en ? 'Total Records:' : 'Jumlah Baris Transaksi:'}</span>
+                  <span className="font-extrabold text-slate-800">{bookings.length} {en ? 'Transactions' : 'Data'}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400">{en ? 'Total Revenue Value:' : 'Total Nilai Transaksi:'}</span>
+                  <span className="font-extrabold text-indigo-900">{formatCurrencyIDR(totalRevenue)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] border-t border-slate-200/60 pt-1.5">
+                  <span className="text-slate-400">{en ? 'File Format:' : 'Format File:'}</span>
+                  <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">.XLSX (Modern Workbook)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2.5 hover:bg-slate-100 rounded-xl font-bold text-xs text-slate-500 transition-colors cursor-pointer"
+              >
+                {en ? 'Cancel' : 'Batal'}
+              </button>
+              <button
+                type="button"
+                onClick={executeExportCashbookXLSX}
+                className="px-5 py-2.5 bg-indigo-900 hover:bg-indigo-950 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-2"
+              >
+                <DownloadCloud className="w-4 h-4" />
+                <span>{en ? 'Export .XLSX Now' : 'Unduh File Excel (.xlsx)'}</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <form onSubmit={handleRequestWithdrawal} className="bg-white rounded-3xl max-w-md w-full p-6 border shadow-2xl space-y-5">
@@ -812,14 +952,12 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
               </button>
             </div>
 
-            {/* Modal fields info */}
             <div className="space-y-4 text-xs font-semibold text-slate-700">
               <div className="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 flex justify-between items-center">
                 <span className="text-indigo-900 font-bold">{en ? 'Available Balance' : 'Saldo Tersedia'}:</span>
                 <strong className="text-indigo-950 text-sm font-black">{formatCurrencyIDR(tenantBalance)}</strong>
               </div>
 
-              {/* Amount input */}
               <div className="space-y-1">
                 <label className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">
                   {en ? 'Withdrawal Amount' : 'Jumlah Penarikan'}
@@ -846,7 +984,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 </div>
               </div>
 
-              {/* Bank Details configuration */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-3">
                 <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">
                   {en ? 'Destination Bank Account' : 'Akun Bank Penerima'}
@@ -886,7 +1023,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 </div>
               </div>
 
-              {/* Notes input */}
               <div className="space-y-1">
                 <label className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">
                   {en ? 'Notes (Optional)' : 'Catatan / Alasan (Opsional)'}
@@ -900,7 +1036,6 @@ export default function TenantFinancePage({ onNavigate, initialTab }: FinancePro
                 />
               </div>
 
-              {/* Fee and Payout calculations */}
               <div className="border-t border-dashed pt-3.5 space-y-2">
                 <div className="flex justify-between items-center text-xs text-slate-500">
                   <span className="font-normal">{en ? 'Admin Processing Fee' : 'Biaya Admin Transfer'}:</span>

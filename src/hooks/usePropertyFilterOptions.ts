@@ -8,6 +8,15 @@ export interface FilterOptions {
   maxPrice: number;
 }
 
+// Helper untuk menghasilkan tanggal hari ini (YYYY-MM-DD) secara dinamis
+export const getTodayDateString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 let cachedData: FilterOptions | null = null;
 let activePromise: Promise<FilterOptions> | null = null;
 
@@ -53,6 +62,9 @@ export function usePropertyFilterOptions() {
   const [maxPrice, setMaxPrice] = useState<number>(cachedData ? cachedData.maxPrice : 5000000);
   const [loading, setLoading] = useState(!cachedData);
   const [error, setError] = useState<Error | null>(null);
+
+  // Tanggal Hari Ini Dinamis (Format YYYY-MM-DD)
+  const todayString = getTodayDateString();
 
   useEffect(() => {
     let active = true;
@@ -102,6 +114,8 @@ export function usePropertyFilterOptions() {
     amenities,
     minPrice,
     maxPrice,
+    defaultCheckIn: todayString, 
+    minCheckIn: todayString,     
     loading,
     error,
     refresh

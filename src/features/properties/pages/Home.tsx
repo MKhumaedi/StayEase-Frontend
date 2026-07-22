@@ -8,7 +8,6 @@ import {
   Users, 
   Star, 
   ArrowRight,
-  Building2,
   ShieldCheck,
   Compass,
   ArrowUpRight,
@@ -18,10 +17,6 @@ import {
   Clock,
   Lock,
   ChevronDown,
-  Info,
-  DollarSign,
-  UserCheck,
-  Percent,
   Plus,
   Minus,
   Heart
@@ -30,22 +25,35 @@ import { useLanguage } from '../../../shared/i18n';
 import { usePropertyFilterOptions } from '../../../hooks/usePropertyFilterOptions';
 import { useWishlist } from '../../../shared/context/WishlistContext';
 import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
+import { InstallAppSection } from '../components/InstallAppSection';
+import { NewsletterBanner } from '../components/NewsletterBanner';
 
 interface HomeProps {
   onNavigate: (path: string, params?: any) => void;
 }
+
+// Helper untuk mengambil tanggal hari ini dalam format YYYY-MM-DD secara presisi
+const getTodayString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function Home({ onNavigate }: HomeProps) {
   useDocumentMetadata();
   const { t, language, formatCurrencyIDR } = useLanguage();
   const { isFavorited, toggleFavorite } = useWishlist();
 
+  const todayStr = getTodayString();
+
   // Carousel State
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const carouselSlides = [
     {
-      title: language === 'en' ? "Find Exceptional Places To Stay" : "Temukan Tempat Hunian Luar Saya",
+      title: language === 'en' ? "Find Exceptional Places To Stay" : "Temukan Tempat Hunian Luar Biasa",
       subtitle: language === 'en' ? "Compare prices across dates and discover the best accommodation deals." : "Bandingkan harga lintas tanggal dan temukan penawaran akomodasi terbaik.",
       cta: language === 'en' ? "Explore Properties" : "Jelajahi Properti",
       action: "properties",
@@ -89,7 +97,9 @@ export default function Home({ onNavigate }: HomeProps) {
   const [destQuery, setDestQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
-  const [checkIn, setCheckIn] = useState('2026-10-12');
+
+  // Inisialisasi Dinamis dengan Tanggal Hari Ini
+  const [checkIn, setCheckIn] = useState(todayStr);
   const [duration, setDuration] = useState(7);
   
   // Guest Stepper States
@@ -189,7 +199,6 @@ export default function Home({ onNavigate }: HomeProps) {
         setProperties(fetchedList);
         setTotalCount(resData.total || 0);
         setLoading(false);
-        // Default the dynamic rate compare widget to the first fetched item
         if (fetchedList.length > 0 && !selectedCompareProp) {
           setSelectedCompareProp(fetchedList[0]);
         }
@@ -219,6 +228,7 @@ export default function Home({ onNavigate }: HomeProps) {
     });
   };
 
+  // Handler Aksi Carousel
   const handleCarouselAction = (slideAction: string) => {
     if (slideAction === 'properties') {
       const el = document.getElementById('property-grid-anchor');
@@ -228,28 +238,29 @@ export default function Home({ onNavigate }: HomeProps) {
         onNavigate('/search');
       }
     } else if (slideAction === 'compare_section') {
-      const el = document.getElementById('pricing-highlight-anchor');
+      const el = document.getElementById('pricing-highlight-anchor') || document.getElementById('property-grid-anchor');
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        onNavigate('/search');
       }
     }
   };
 
-  // Safe Math helper for dynamic rates calendar
-  const getDynamicRates = (base: number) => {
-    return [
-      { date: "12 Oct", rate: Math.round(base), label: language === 'en' ? "Standard Rate" : "Tarif Dasar", isPromo: false, isPeak: false },
-      { date: "13 Oct", rate: Math.round(base * 1.25), label: language === 'en' ? "Weekend Markup" : "Tarif Akhir Pekan", isPromo: false, isPeak: true },
-      { date: "14 Oct", rate: Math.round(base * 1.5), label: language === 'en' ? "Peak Demand Block" : "Tarif Musim Ramai", isPromo: false, isPeak: true },
-      { date: "15 Oct", rate: Math.round(base * 0.9), label: language === 'en' ? "Special Promo -10%" : "Promo Khusus -10%", isPromo: true, isPeak: false },
-      { date: "16 Oct", rate: Math.round(base * 1.1), label: language === 'en' ? "High demand" : "Permintaan Tinggi", isPromo: false, isPeak: false }
-    ];
+  // Sanitasi manual jika input tanggal diketik / dipilih sebelum hari ini
+  const handleCheckInChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val && val < todayStr) {
+      setCheckIn(todayStr);
+    } else {
+      setCheckIn(val);
+    }
   };
 
   const totalPages = Math.ceil(totalCount / limit) || 1;
 
   return (
-    <div className="font-sans text-slate-800 antialiased bg-slate-50/50 pb-20">
+    <div className="font-sans text-slate-800 antialiased bg-slate-50/50 p-0 m-0">
       
       {/* 1. HERO CAROUSEL SECTION */}
       <div className="relative h-[580px] sm:h-[640px] md:h-[700px] w-full overflow-hidden bg-slate-950 mt-[-76px]">
@@ -387,8 +398,9 @@ export default function Home({ onNavigate }: HomeProps) {
                 <input 
                   type="date" 
                   aria-labelledby="check-in-label"
+                  min={todayStr}
                   value={checkIn}
-                  onChange={(e) => setCheckIn(e.target.value)}
+                  onChange={handleCheckInChange}
                   className="bg-transparent text-xs font-bold text-slate-805 cursor-pointer focus:outline-hidden w-full"
                 />
               </div>
@@ -514,13 +526,15 @@ export default function Home({ onNavigate }: HomeProps) {
 
       <div className="max-w-7xl mx-auto px-6 mt-16" id="property-grid-anchor">
         
-        {/* 3. SERVER-SIDE PROPERTY LIST SECTION */}
-        <div className="flex flex-col gap-3 mb-8">
-          <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">{t.home.premiumPortfolios}</span>
-          <h2 className="text-3xl font-black text-slate-900 font-display">{t.home.discoverAccommodations}</h2>
-          <p className="text-slate-500 text-sm max-w-xl">
-            {t.home.discoverDesc}
-          </p>
+        {/* Anchor Khusus untuk Tombol Bandingkan Harga */}
+        <div id="pricing-highlight-anchor" className="scroll-mt-24">
+          <div className="flex flex-col gap-3 mb-8">
+            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">{t.home.premiumPortfolios}</span>
+            <h2 className="text-3xl font-black text-slate-900 font-display">{t.home.discoverAccommodations}</h2>
+            <p className="text-slate-500 text-sm max-w-xl">
+              {t.home.discoverDesc}
+            </p>
+          </div>
         </div>
 
         {/* Filter Management Console */}
@@ -765,7 +779,8 @@ export default function Home({ onNavigate }: HomeProps) {
           </div>
         )}
 
-
+        {/* 4. SEKSI INSTALL APP (INTEGRASI FITUR WEB APP PWA 1-KLIK) */}
+        <InstallAppSection />
 
         {/* 5. WHY CHOOSE STAYEASE SECTION */}
         <div className="flex flex-col gap-3 mb-10 text-center items-center mt-20">
@@ -776,7 +791,7 @@ export default function Home({ onNavigate }: HomeProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           
           {/* Card 1: Dynamic Pricing */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs hover:shadow-md transition-shadow">
@@ -824,6 +839,10 @@ export default function Home({ onNavigate }: HomeProps) {
 
         </div>
 
+      </div>
+
+      <div className="w-full mt-16 sm:mt-20 mb-0 p-0">
+        <NewsletterBanner />
       </div>
 
     </div>

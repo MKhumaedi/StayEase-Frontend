@@ -21,9 +21,21 @@ import {
 import { useLanguage } from '../../../shared/i18n';
 import { useAuth } from '../../../shared/context/AuthContext';
 
+// Helper untuk mengambil tanggal hari ini dalam format YYYY-MM-DD secara presisi
+const getTodayString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function TenantAvailability() {
   const { language, formatCurrencyIDR } = useLanguage();
   const { token } = useAuth();
+
+  const todayStr = getTodayString();
+  const todayObj = new Date();
 
   // Selected state
   const [properties, setProperties] = useState<any[]>([]);
@@ -39,16 +51,18 @@ export default function TenantAvailability() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Calendar view navigation
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // October 2026 default to fit mockup dates
+  // Calendar view navigation (DINAMIS SESUAI TANGGAL HARI INI)
+  const [currentYear, setCurrentYear] = useState(todayObj.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(todayObj.getMonth()); 
 
   // Form states for rule configuration
   const [editingRuleName, setEditingRuleName] = useState<string | null>(null);
   const [ruleName, setRuleName] = useState('');
   const [applyMode, setApplyMode] = useState<'SINGLE' | 'RANGE' | 'MULTIPLE'>('RANGE');
-  const [startDate, setStartDate] = useState('2026-10-12');
-  const [endDate, setEndDate] = useState('2026-10-15');
+  
+  // Default tanggal form ke hari ini
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [adjustmentOption, setAdjustmentOption] = useState<'PERCENTAGE' | 'FIXED' | 'DISCOUNT'>('PERCENTAGE');
   const [adjustmentValue, setAdjustmentValue] = useState<string>('20');
@@ -145,11 +159,9 @@ export default function TenantAvailability() {
     const startOfMonth = new Date(currentYear, currentMonth, 1);
     const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
     const totalDays = endOfMonth.getDate();
-    const startDayOfWeek = startOfMonth.getDay(); // 0 is Sunday, etc.
+    const startDayOfWeek = startOfMonth.getDay();
 
     const list = [];
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     // Get basic details
     const activeRooms = selectedRoomId === 'all' ? rooms : rooms.filter(r => r.id === selectedRoomId);
@@ -160,34 +172,31 @@ export default function TenantAvailability() {
     for (let day = 1; day <= totalDays; day++) {
       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dayOfWeek = new Date(currentYear, currentMonth, day).getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      const isPast = dateStr < todayStr;
+      const isToday = dateStr === todayStr;
 
       // Find matching rules for this date
       const matchingRules = rules.filter(r => r.isActive !== false && dateStr >= r.startDate && dateStr <= r.endDate);
-      const isToday = dateStr === todayStr;
 
-      // Check if there are closed/blocked rooms on this date
       let isBlocked = false;
       if (selectedRoomId !== 'all') {
         const room = rooms.find(r => r.id === selectedRoomId);
         isBlocked = room?.availabilities?.some((o: any) => o.date === dateStr && o.isBlocked) || false;
       } else {
-        // If all rooms, check if at least one room is blocked
         isBlocked = rooms.some(r => r.availabilities?.some((o: any) => o.date === dateStr && o.isBlocked));
       }
 
-      // Check if Peak Season applies
       let isPeak = false;
       let matchedRule: any = null;
       if (matchingRules.length > 0) {
-        // Prioritize specific room rule or take general property rule
         const specificRule = matchingRules.find(r => r.roomId === selectedRoomId);
         const generalRule = matchingRules.find(r => !r.roomId);
         matchedRule = specificRule || generalRule || matchingRules[0];
         isPeak = matchedRule ? true : false;
       }
 
-      // Calculate displayed price
       let displayPrice = averageBasePrice;
       if (matchedRule) {
         if (matchedRule.adjustmentType === 'FIXED_AMOUNT_INCREASE') {
@@ -196,7 +205,7 @@ export default function TenantAvailability() {
           displayPrice = Math.round(averageBasePrice * Number(matchedRule.rateMultiplier || 1));
         }
       } else if (isWeekend) {
-        displayPrice = Math.round(averageBasePrice * 1.25); // standard 25% weekend markup
+        displayPrice = Math.round(averageBasePrice * 1.25);
       }
 
       list.push({
@@ -204,6 +213,7 @@ export default function TenantAvailability() {
         day,
         isWeekend,
         isToday,
+        isPast,
         isBlocked,
         isPeak,
         matchedRule,
@@ -211,17 +221,18 @@ export default function TenantAvailability() {
       });
     }
 
-    // Add empty spacer items for padding alignment
     const spacers = [];
     for (let i = 0; i < startDayOfWeek; i++) {
       spacers.push(null);
     }
 
     return [...spacers, ...list];
-  }, [currentYear, currentMonth, selectedRoomId, rooms, rules]);
+  }, [currentYear, currentMonth, selectedRoomId, rooms, rules, todayStr]);
 
-  // Click on Calendar Day cell
+  // Click on Calendar Day cell (Mencegah tanggal lampau diklik)
   const handleSelectDay = (dateStr: string) => {
+    if (dateStr < todayStr) return; // Mencegah pemilihan tanggal lampau
+
     if (applyMode === 'SINGLE') {
       setStartDate(dateStr);
       setEndDate(dateStr);
@@ -260,7 +271,6 @@ export default function TenantAvailability() {
       }
     } else { // MULTIPLE
       if (startDate && endDate) {
-        // Populate dates list from range
         const dates: string[] = [];
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -269,13 +279,16 @@ export default function TenantAvailability() {
           const yyyy = curr.getFullYear();
           const mm = String(curr.getMonth() + 1).padStart(2, '0');
           const dd = String(curr.getDate()).padStart(2, '0');
-          dates.push(`${yyyy}-${mm}-${dd}`);
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          if (dateStr >= todayStr) {
+            dates.push(dateStr);
+          }
           curr.setDate(curr.getDate() + 1);
         }
         setSelectedDates(dates);
       }
     }
-  }, [applyMode]);
+  }, [applyMode, todayStr]);
 
   // Calculate live preview price metrics
   const previewPriceMetrics = useMemo(() => {
@@ -306,8 +319,8 @@ export default function TenantAvailability() {
   const handleResetForm = () => {
     setRuleName('');
     setEditingRuleName(null);
-    setStartDate('2026-10-12');
-    setEndDate('2026-10-15');
+    setStartDate(todayStr);
+    setEndDate(todayStr);
     setSelectedDates([]);
     setAdjustmentOption('PERCENTAGE');
     setAdjustmentValue('20');
@@ -326,9 +339,8 @@ export default function TenantAvailability() {
     setRuleName(rule.name);
     setSelectedRoomId(rule.roomId || 'all');
     
-    // Set dates
-    setStartDate(rule.startDate);
-    setEndDate(rule.endDate);
+    setStartDate(rule.startDate < todayStr ? todayStr : rule.startDate);
+    setEndDate(rule.endDate < todayStr ? todayStr : rule.endDate);
     
     if (rule.startDate === rule.endDate) {
       setApplyMode('SINGLE');
@@ -337,7 +349,6 @@ export default function TenantAvailability() {
       setApplyMode('RANGE');
     }
 
-    // Set adjustments
     if (rule.adjustmentType === 'FIXED_AMOUNT_INCREASE') {
       setAdjustmentOption('FIXED');
       setAdjustmentValue(String(Math.abs(rule.adjustmentValue)));
@@ -366,7 +377,6 @@ export default function TenantAvailability() {
     setError(null);
     setSuccess(null);
 
-    // Compute multiplier and database values
     const valueNum = Number(adjustmentValue) || 0;
     let finalMultiplier = 1.0;
     let dbAdjustmentType = 'PERCENTAGE_INCREASE';
@@ -382,8 +392,8 @@ export default function TenantAvailability() {
       finalMultiplier = 1 - valueNum / 100;
       dbAdjustmentType = 'PERCENTAGE_INCREASE';
       dbAdjustmentValue = -valueNum;
-    } else { // FIXED
-      finalMultiplier = 1.0; // Handled directly via adjustment type inside calculation engine
+    } else {
+      finalMultiplier = 1.0;
       dbAdjustmentType = 'FIXED_AMOUNT_INCREASE';
       dbAdjustmentValue = valueNum;
     }
@@ -432,13 +442,11 @@ export default function TenantAvailability() {
     }
   };
 
-  // Toggle activation status
   const handleToggleRuleStatus = async (rule: any) => {
     setError(null);
     setSuccess(null);
     const nextStatus = !rule.isActive;
     try {
-      // Optimistic update
       setRules(prev => prev.map(r => r.name === rule.name ? { ...r, isActive: nextStatus } : r));
 
       const res = await fetch(`/api/properties/${selectedPropertyId}/peak-seasons/${encodeURIComponent(rule.name)}/toggle`, {
@@ -456,11 +464,10 @@ export default function TenantAvailability() {
       }
     } catch (err: any) {
       setError(err.message);
-      fetchPropertyData(); // rollback
+      fetchPropertyData();
     }
   };
 
-  // Delete Rule (soft delete)
   const handleDeleteRule = async (ruleName: string) => {
     if (!window.confirm(language === 'en' ? `Are you sure you want to delete rule "${ruleName}"?` : `Apakah Anda yakin ingin menghapus aturan "${ruleName}"?`)) {
       return;
@@ -485,11 +492,10 @@ export default function TenantAvailability() {
       fetchPropertyData();
     } catch (err: any) {
       setError(err.message);
-      fetchPropertyData(); // rollback
+      fetchPropertyData();
     }
   };
 
-  // Helper to format rule periods cleanly
   const formatPeriod = (rule: any) => {
     if (rule.startDate === rule.endDate) {
       return rule.startDate;
@@ -497,7 +503,6 @@ export default function TenantAvailability() {
     return `${rule.startDate} ➔ ${rule.endDate}`;
   };
 
-  // Helper to format rule adjustment text
   const formatAdjustment = (rule: any) => {
     if (rule.rateMultiplier === 0) {
       return (
@@ -618,11 +623,14 @@ export default function TenantAvailability() {
 
                 const selected = isSelectedDate(c.date);
                 
-                // Construct color classes based on state priority
                 let bgBorderClass = 'border-slate-100 bg-white hover:bg-slate-50';
                 let priceColor = 'text-slate-500';
 
-                if (c.isBlocked) {
+                // Tampilan khusus untuk tanggal lampau
+                if (c.isPast) {
+                  bgBorderClass = 'border-slate-100 bg-slate-100/60 text-slate-300 opacity-60 cursor-not-allowed';
+                  priceColor = 'text-slate-350';
+                } else if (c.isBlocked) {
                   bgBorderClass = 'border-red-150 bg-red-50/50 text-red-700 hover:bg-red-50';
                   priceColor = 'text-red-500 font-bold';
                 } else if (c.isPeak) {
@@ -636,7 +644,7 @@ export default function TenantAvailability() {
                   priceColor = 'text-emerald-700 font-bold';
                 }
 
-                if (selected) {
+                if (selected && !c.isPast) {
                   bgBorderClass = 'border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/30 ring-offset-1';
                 }
 
@@ -644,8 +652,11 @@ export default function TenantAvailability() {
                   <button 
                     key={idx} 
                     type="button"
+                    disabled={c.isPast}
                     onClick={() => handleSelectDay(c.date)}
-                    className={`p-2.5 rounded-2xl border text-left cursor-pointer transition-all duration-200 aspect-square flex flex-col justify-between hover:scale-[1.03] ${bgBorderClass}`}
+                    className={`p-2.5 rounded-2xl border text-left transition-all duration-200 aspect-square flex flex-col justify-between ${
+                      c.isPast ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-[1.03]'
+                    } ${bgBorderClass}`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="text-xs font-bold">{c.day}</span>
@@ -875,7 +886,7 @@ export default function TenantAvailability() {
               </div>
             </div>
 
-            {/* Conditional Date Selection inputs */}
+            {/* Conditional Date Selection inputs (TERKUNCI MINIMAL HARI INI) */}
             {applyMode === 'SINGLE' && (
               <div>
                 <label className="text-[10px] font-extrabold uppercase text-slate-455 block mb-1">
@@ -883,8 +894,13 @@ export default function TenantAvailability() {
                 </label>
                 <input 
                   type="date" 
+                  min={todayStr}
                   value={startDate} 
-                  onChange={e => { setStartDate(e.target.value); setEndDate(e.target.value); }} 
+                  onChange={e => { 
+                    const val = e.target.value < todayStr ? todayStr : e.target.value;
+                    setStartDate(val); 
+                    setEndDate(val); 
+                  }} 
                   className="w-full bg-slate-50 border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-hidden focus:bg-white" 
                 />
               </div>
@@ -898,8 +914,12 @@ export default function TenantAvailability() {
                   </label>
                   <input 
                     type="date" 
+                    min={todayStr}
                     value={startDate} 
-                    onChange={e => setStartDate(e.target.value)} 
+                    onChange={e => {
+                      const val = e.target.value < todayStr ? todayStr : e.target.value;
+                      setStartDate(val);
+                    }} 
                     className="w-full bg-slate-50 border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-hidden focus:bg-white" 
                   />
                 </div>
@@ -909,8 +929,12 @@ export default function TenantAvailability() {
                   </label>
                   <input 
                     type="date" 
+                    min={startDate || todayStr}
                     value={endDate} 
-                    onChange={e => setEndDate(e.target.value)} 
+                    onChange={e => {
+                      const val = e.target.value < todayStr ? todayStr : e.target.value;
+                      setEndDate(val);
+                    }} 
                     className="w-full bg-slate-50 border border-slate-200 text-xs font-semibold p-2.5 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-hidden focus:bg-white" 
                   />
                 </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CreditCard, ShieldCheck, Sparkles, Receipt, Calculator, AlertCircle, HelpCircle } from 'lucide-react';
+import { CreditCard, ShieldCheck, Sparkles, Receipt, Calculator, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../../../shared/i18n';
 import { PricingService } from '../../services/PricingService';
 
@@ -8,8 +8,28 @@ interface WizardStep5Props {
   setForm: React.Dispatch<React.SetStateAction<any>>;
 }
 
+// Helper untuk mengambil tanggal hari ini dan besok (YYYY-MM-DD) secara presisi
+const getTodayAndTomorrowDates = () => {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  const formatDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    todayStr: formatDate(today),
+    tomorrowStr: formatDate(tomorrow)
+  };
+};
+
 export function WizardStep5({ form, setForm }: WizardStep5Props) {
   const { language, formatCurrencyIDR } = useLanguage();
+  const { todayStr, tomorrowStr } = getTodayAndTomorrowDates();
 
   // Helper function to format numeric value to rupiah format without Rp prefix for the input text
   const formatInputText = (num: number): string => {
@@ -57,7 +77,9 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
     serviceFee: form.serviceFee || 0,
     peakSeasonRates: []
   };
-  const quote = PricingService.calculateQuote(pricingInput, null, '2026-10-12', '2026-10-13');
+  
+  // Tanggal kalkulasi dibuat dinamis (hari ini -> besok)
+  const quote = PricingService.calculateQuote(pricingInput, null, todayStr, tomorrowStr);
 
   const basePrice = quote.nightlyRate;
   const cleaningFee = quote.cleaningFee;
@@ -71,9 +93,9 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
   return (
     <div className="space-y-6" id="saas-style-pricing-container">
       {/* Header Panel */}
-      <div className="border-l-4 border-slate-900 pl-3.5 py-1">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-450">Step 6 of 8</h4>
-        <h3 className="text-base font-bold text-slate-900 tracking-tight">
+      <div className="border-l-4 border-indigo-950 pl-3.5 py-1">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 6 of 8</h4>
+        <h3 className="text-base font-bold text-slate-900 tracking-tight font-display">
           {language === 'en' ? 'Pricing & Channel Fees' : 'Harga & Biaya Penyaluran'}
         </h3>
         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
@@ -89,7 +111,7 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
             {/* 1. Base Price */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
               <div>
                 <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
                   <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -103,8 +125,8 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
               </div>
 
               <div className="space-y-1">
-                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-slate-400 focus-within:bg-white rounded-lg px-3 py-2 transition-all">
-                  <span className="text-xs font-bold text-slate-400 mr-1 select-none">Rp</span>
+                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white rounded-xl px-3 py-2.5 transition-all">
+                  <span className="text-xs font-extrabold text-slate-400 mr-1.5 select-none">Rp</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -112,12 +134,12 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                     placeholder="0"
                     value={basePriceText}
                     onChange={(e) => handleTextChange('basePrice', e.target.value, setBasePriceText)}
-                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-none focus:ring-0"
+                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-0"
                   />
                 </div>
                 {basePrice > 0 && basePrice < 50000 && (
-                  <p className="text-[10px] font-semibold text-rose-600 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3 text-rose-500" />
+                  <p className="text-[10px] font-semibold text-rose-600 flex items-center gap-1 pt-0.5">
+                    <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
                     {language === 'en' ? 'Minimum rate is Rp 50.000' : 'Tarif minimal Rp 50.000'}
                   </p>
                 )}
@@ -125,7 +147,7 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
             </div>
 
             {/* 2. Cleaning Fee */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
               <div>
                 <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -139,8 +161,8 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
               </div>
 
               <div className="space-y-1">
-                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-slate-400 focus-within:bg-white rounded-lg px-3 py-2 transition-all">
-                  <span className="text-xs font-bold text-slate-400 mr-1 select-none">Rp</span>
+                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white rounded-xl px-3 py-2.5 transition-all">
+                  <span className="text-xs font-extrabold text-slate-400 mr-1.5 select-none">Rp</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -148,14 +170,14 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                     placeholder="0"
                     value={cleaningFeeText}
                     onChange={(e) => handleTextChange('cleaningFee', e.target.value, setCleaningFeeText)}
-                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-none focus:ring-0"
+                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-0"
                   />
                 </div>
               </div>
             </div>
 
             {/* 3. Service Fee */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
               <div>
                 <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
                   <Receipt className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
@@ -169,8 +191,8 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
               </div>
 
               <div className="space-y-1">
-                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-slate-400 focus-within:bg-white rounded-lg px-3 py-2 transition-all">
-                  <span className="text-xs font-bold text-slate-400 mr-1 select-none">Rp</span>
+                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white rounded-xl px-3 py-2.5 transition-all">
+                  <span className="text-xs font-extrabold text-slate-400 mr-1.5 select-none">Rp</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -178,14 +200,14 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                     placeholder="0"
                     value={serviceFeeText}
                     onChange={(e) => handleTextChange('serviceFee', e.target.value, setServiceFeeText)}
-                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-none focus:ring-0"
+                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-0"
                   />
                 </div>
               </div>
             </div>
 
             {/* 4. Security Deposit */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-colors flex flex-col justify-between min-h-[160px]">
               <div>
                 <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wider">
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -199,8 +221,8 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
               </div>
 
               <div className="space-y-1">
-                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-slate-400 focus-within:bg-white rounded-lg px-3 py-2 transition-all">
-                  <span className="text-xs font-bold text-slate-400 mr-1 select-none">Rp</span>
+                <div className="relative flex items-center bg-slate-50 border border-slate-200 focus-within:border-indigo-500 focus-within:bg-white rounded-xl px-3 py-2.5 transition-all">
+                  <span className="text-xs font-extrabold text-slate-400 mr-1.5 select-none">Rp</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -208,7 +230,7 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                     placeholder="0"
                     value={securityDepositText}
                     onChange={(e) => handleTextChange('securityDeposit', e.target.value, setSecurityDepositText)}
-                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-none focus:ring-0"
+                    className="w-full bg-transparent border-0 p-0 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-0"
                   />
                 </div>
               </div>
@@ -217,12 +239,12 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
           </div>
         </div>
 
-        {/* Right Area: Compact Pricing Summary Card (Professional Hostaway/Stripe Style) */}
+        {/* Right Area: Compact Pricing Summary Card */}
         <div className="lg:col-span-4 lg:sticky lg:top-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs space-y-4">
             <div>
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5 select-none pb-2 border-b border-slate-100">
-                <Calculator className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5 select-none pb-2 border-b border-slate-100 font-display">
+                <Calculator className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 {language === 'en' ? 'Pricing Summary Ledger' : 'Ledger Estimasi Harga'}
               </h4>
               <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
@@ -236,27 +258,27 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
             <div className="space-y-2.5 text-xs text-slate-600">
               <div className="flex items-center justify-between">
                 <span>{language === 'en' ? 'Base Rate /night' : 'Tarif Dasar /malam'}</span>
-                <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(basePrice)}</span>
+                <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(basePrice)}</span>
               </div>
               
               <div className="flex items-center justify-between">
                 <span>{language === 'en' ? 'Cleaning Fee' : 'Biaya Kebersihan'}</span>
-                <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(cleaningFee)}</span>
+                <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(cleaningFee)}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span>{language === 'en' ? 'Service Surcharge' : 'Biaya Tambahan Jasa'}</span>
-                <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(serviceFee)}</span>
+                <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(serviceFee)}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span>{language === 'en' ? 'Security Escrow' : 'Deposit Jaminan'}</span>
-                <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(securityDeposit)}</span>
+                <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(securityDeposit)}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span>{language === 'en' ? 'Estimated Stays Tax (10%)' : 'PPN / Pajak Daerah (10%)'}</span>
-                <span className="font-semibold text-slate-800 font-mono">{formatCurrencyIDR(estimatedTax)}</span>
+                <span className="font-bold text-slate-800 font-mono">{formatCurrencyIDR(estimatedTax)}</span>
               </div>
 
               {/* Estimated Guest Invoice Rate */}
@@ -265,9 +287,9 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                   <span className="font-bold text-slate-800 text-xs">
                     {language === 'en' ? 'Estimated Guest Price' : 'Estimasi Harga Tamu'}
                   </span>
-                  <span className="text-sm font-extrabold text-blue-600 font-mono">
+                  <span className="text-sm font-extrabold text-indigo-600 font-mono">
                     {formatCurrencyIDR(displayPrice)}
-                    <span className="text-[10px] font-medium text-slate-400"> /night</span>
+                    <span className="text-[10px] font-medium text-slate-400 font-sans"> /malam</span>
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400">
@@ -276,8 +298,8 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
               </div>
 
               {/* Net Host Takehome Revenue */}
-              <div className="bg-slate-50/50 border border-slate-100 rounded-lg p-3 space-y-1 mt-1 transition-colors hover:bg-slate-50">
-                <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider block">
+              <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-3.5 space-y-1 mt-1 transition-colors hover:bg-slate-50">
+                <span className="text-[9px] font-extrabold text-indigo-950 uppercase tracking-wider block">
                   {language === 'en' ? 'Estimated Host Earnings' : 'Estimasi Perolehan Bersih Hos'}
                 </span>
                 <div className="flex items-baseline justify-between">
@@ -286,7 +308,7 @@ export function WizardStep5({ form, setForm }: WizardStep5Props) {
                     {formatCurrencyIDR(hostRevenue)}
                   </span>
                 </div>
-                <p className="text-[9.5px] text-slate-400 leading-normal">
+                <p className="text-[9.5px] text-slate-400 leading-normal pt-0.5">
                   {language === 'en' ? 'Returns security hold directly without commissions.' : 'Mengabaikan potongan komisi terhadap deposit penjamin.'}
                 </p>
               </div>
