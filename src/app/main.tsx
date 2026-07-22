@@ -1,5 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import '../config/api';
 import App from './App.tsx';
 import './index.css';
 import { LanguageProvider } from '../shared/i18n';

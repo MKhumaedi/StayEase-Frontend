@@ -698,7 +698,7 @@ export default function TenantProperties({ initialTab }: { initialTab?: 'list' |
         editingProperty={editingProperty} 
         editingDraft={editingDraft}
         onClose={() => { 
-          setShowWizard(false); 
+          setShowWizard(false);   
           setEditingProperty(null); 
           setEditingDraft(null); 
         }} 
