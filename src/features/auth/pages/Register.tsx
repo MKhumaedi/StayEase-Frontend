@@ -22,30 +22,70 @@ export default function Register({ onNavigate, params }: RegisterProps) {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && origin !== window.location.origin) {
-        return;
-      }
-      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { user, token } = event.data;
-        authContextLogin(user, token);
-        setSuccess(true);
-        setGoogleLoading(false);
-        setTimeout(() => {
-          if (user.role === UserRole.ADMIN) {
-            onNavigate('/admin');
-          } else {
-            onNavigate(user.role === UserRole.TENANT ? '/dashboard' : '/my-bookings');
-          }
-        }, 1200);
-      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        setError(event.data.error || 'Google authentication failed');
-        setGoogleLoading(false);
+    let handledSuccess = false;
+
+    const handleOAuthSuccess = (user: any, token: string) => {
+      if (!user || !token || handledSuccess) return;
+      handledSuccess = true;
+
+      authContextLogin(user, token);
+      setSuccess(true);
+      setGoogleLoading(false);
+      setError('');
+
+      if (user.role === UserRole.ADMIN) {
+        onNavigate('/admin');
+      } else {
+        onNavigate(user.role === UserRole.TENANT ? '/dashboard' : '/my-bookings');
       }
     };
+
+    const handleOAuthError = (errorMsg: string) => {
+      setError(errorMsg);
+      setGoogleLoading(false);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        handleOAuthSuccess(event.data.user, event.data.token);
+      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        handleOAuthError(event.data.error || 'Google authentication failed');
+      }
+    };
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('stayease_oauth_channel');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+          handleOAuthSuccess(event.data.user, event.data.token);
+        } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+          handleOAuthError(event.data.error || 'Google authentication failed');
+        }
+      };
+    } catch (e) {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'stayease_oauth_event' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.type === 'OAUTH_AUTH_SUCCESS') {
+            handleOAuthSuccess(parsed.user, parsed.token);
+          } else if (parsed.type === 'OAUTH_AUTH_ERROR') {
+            handleOAuthError(parsed.error || 'Google authentication failed');
+          }
+        } catch (err) {}
+      }
+    };
+
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (channel) channel.close();
+    };
   }, [authContextLogin, onNavigate]);
 
   const handleGoogleLogin = async () => {
@@ -58,7 +98,10 @@ export default function Register({ onNavigate, params }: RegisterProps) {
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: true
+          skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account',
+          }
         }
       });
       if (signInError) throw signInError;
@@ -76,6 +119,14 @@ export default function Register({ onNavigate, params }: RegisterProps) {
       if (!popup) {
         throw new Error('Popup blocked. Please allow popups for StayEase to authenticate with Google.');
       }
+
+      // Berhenti loading otomatis saat fokus kembali ke jendela utama (popup ditutup/selesai)
+      const handleFocus = () => {
+        setGoogleLoading(false);
+        window.removeEventListener('focus', handleFocus);
+      };
+      window.addEventListener('focus', handleFocus);
+
     } catch (err: any) {
       console.error('[GoogleLogin] Error:', err);
       setError(err.message || 'Failed to start Google sign-in');
@@ -98,7 +149,6 @@ export default function Register({ onNavigate, params }: RegisterProps) {
     }
     setError('');
     
-    // Validasi sebelum memanggil Supabase
     if (!name.trim()) {
       setError('Nama Lengkap wajib diisi');
       return;
@@ -112,7 +162,6 @@ export default function Register({ onNavigate, params }: RegisterProps) {
       setError('Role wajib dipilih');
       return;
     }
-    // Simple frontend validation for password strength
     if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
       return;
@@ -121,12 +170,9 @@ export default function Register({ onNavigate, params }: RegisterProps) {
     isSubmittingRef.current = true;
 
     try {
-      // 1. Bootstrap client-side Supabase client
       const supabase = await getSupabaseClient();
       
-      // 2. Perform native sign up which dispatches email from Supabase
       const redirectUrl = window.location.origin + '/auth/callback';
-      console.log('[Register:signUp] Initiating signUp for email:', email, 'redirectUrl:', redirectUrl);
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -136,10 +182,7 @@ export default function Register({ onNavigate, params }: RegisterProps) {
         }
       });
 
-      console.log('[Register:signUp] Response details:', { data, error: signUpError });
-
       if (signUpError) {
-        console.error('[Register:signUp] Supabase signUp failed:', signUpError);
         const errMessage = signUpError.message?.toLowerCase() || '';
         if (signUpError.status === 429 || errMessage.includes('rate limit') || errMessage.includes('too many requests')) {
           throw new Error('Terlalu banyak permintaan verifikasi email. Silakan tunggu beberapa saat sebelum mencoba kembali.');
@@ -154,7 +197,6 @@ export default function Register({ onNavigate, params }: RegisterProps) {
         throw new Error('Verification email failed: Supabase did not return user data.');
       }
 
-      // 3. Register user profile inside backend database with isVerified = false
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -206,7 +248,7 @@ export default function Register({ onNavigate, params }: RegisterProps) {
         )}
 
         {/* OAuth Buttons */}
-        {/* <div className="flex flex-col gap-2 mb-4">
+        <div className="flex flex-col gap-2 mb-4">
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -229,13 +271,13 @@ export default function Register({ onNavigate, params }: RegisterProps) {
             <Apple className="w-4 h-4 text-slate-400" />
             Continue with Apple
           </button>
-        </div> */}
+        </div>
 
-        {/* <div className="relative flex py-2 items-center mb-4">
-          <div className="grow border-t border-slate-100"></div>
-          <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or register with email</span>
-          <div className="grow border-t border-slate-100"></div>
-        </div> */}
+        <div className="relative flex py-2 items-center mb-4">
+          <div className="flex-grow border-t border-slate-100"></div>
+          <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or register with email</span>
+          <div className="flex-grow border-t border-slate-100"></div>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-2 mb-2">

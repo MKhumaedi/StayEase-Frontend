@@ -18,7 +18,7 @@ export function getInitials(name?: string): string {
 }
 
 export default function Profile() {
-  const { user, token, login } = useAuth();
+  const { user, token, login, refreshUser } = useAuth();
   const { language } = useLanguage();
 
   useDocumentMetadata({
@@ -121,17 +121,28 @@ export default function Profile() {
     setIsDragging(false);
   };
 
+  const resetFileInput = () => {
+    const fileInput = document.getElementById('avatar-file-input') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFile(e.dataTransfer.files[0]);
+    } else {
+      setErrorMsg('Silakan pilih gambar terlebih dahulu.');
+      setAvatarFile(null);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files && e.target.files.length > 0) {
       handleFile(e.target.files[0]);
+    } else {
+      setErrorMsg('Silakan pilih gambar terlebih dahulu.');
+      setAvatarFile(null);
     }
   };
 
@@ -139,16 +150,34 @@ export default function Profile() {
     setErrorMsg('');
     setSuccessMsg('');
 
-    // Reject > 2 MB file uploads
-    if (file.size > 2 * 1024 * 1024) {
-      setErrorMsg(language === 'en' ? 'File exceeds maximum 2 MB limit.' : 'Ukuran file melebihi batas 2 MB.');
+    // Check empty file
+    if (!file || file.size === 0) {
+      setErrorMsg('Silakan pilih gambar terlebih dahulu.');
+      setAvatarFile(null);
+      resetFileInput();
       return;
     }
 
-    // Validate MIME types
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      setErrorMsg(language === 'en' ? 'Only JPG, JPEG, PNG, or WEBP formats are permitted.' : 'Hanya format JPG, JPEG, PNG, atau WEBP yang diizinkan.');
+    // Maximum file size 1 MB (1048576 bytes)
+    if (file.size > 1 * 1024 * 1024) {
+      setErrorMsg('Ukuran gambar maksimal 1 MB.');
+      setAvatarFile(null);
+      resetFileInput();
+      return;
+    }
+
+    // Validate MIME types and file extensions
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+
+    const fileName = file.name || '';
+    const ext = fileName.includes('.') ? '.' + fileName.split('.').pop()!.toLowerCase() : '';
+    const mimeType = file.type ? file.type.toLowerCase() : '';
+
+    if (!allowedMimeTypes.includes(mimeType) || !allowedExtensions.includes(ext)) {
+      setErrorMsg('Format gambar tidak didukung. Gunakan JPG, JPEG, PNG, atau WEBP.');
+      setAvatarFile(null);
+      resetFileInput();
       return;
     }
 
@@ -257,9 +286,23 @@ export default function Profile() {
         throw new Error(data.error || (language === 'en' ? 'Failed to update profile' : 'Gagal memperbarui profil'));
       }
 
-      // Sync updated user into localStorage and AuthContext
-      const updatedUser = { ...user, ...data.user };
+      // Sync updated user into localStorage and AuthContext with cache-busting timestamp
+      const timestamp = Date.now();
+      let syncedAvatarUrl = data.user?.avatarUrl || finalAvatarUrl;
+      if (syncedAvatarUrl && !syncedAvatarUrl.includes('dicebear.com') && !syncedAvatarUrl.startsWith('blob:') && !syncedAvatarUrl.startsWith('data:')) {
+        const cleanUrl = syncedAvatarUrl.split('?')[0];
+        syncedAvatarUrl = `${cleanUrl}?v=${timestamp}`;
+      }
+
+      const updatedUser = { ...user, ...data.user, avatarUrl: syncedAvatarUrl };
       login(updatedUser, token);
+
+      setAvatarUrl(syncedAvatarUrl || '');
+      setAvatarFile(null);
+
+      if (refreshUser) {
+        await refreshUser();
+      }
 
       setSuccessMsg(language === 'en' ? 'Profile updated successfully!' : 'Profil berhasil diperbarui!');
       setIsDirty(false);
@@ -267,7 +310,11 @@ export default function Profile() {
       // Fade alert out
       setTimeout(() => setSuccessMsg(''), 5000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error occurred');
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setErrorMsg('Gagal mengunggah gambar. Silakan coba kembali.');
+      } else {
+        setErrorMsg(err.message || 'Gagal mengunggah gambar. Silakan coba kembali.');
+      }
     } finally {
       setSaving(false);
     }
@@ -432,12 +479,12 @@ export default function Profile() {
                   {language === 'en' ? 'Drag & drop image or click' : 'Seret & lepas atau klik'}
                 </p>
                 <p className="text-[8.5px] text-slate-400">
-                  {language === 'en' ? 'JPG, PNG, WEBP (Max 2MB)' : 'JPG, PNG, WEBP (Maks 2MB)'}
+                  {language === 'en' ? 'JPG, PNG, WEBP (Max 1 MB)' : 'JPG, PNG, WEBP (Maks 1 MB)'}
                 </p>
                 <input 
                   id="avatar-file-input"
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                   className="hidden"
                   onChange={handleFileSelect}
                 />

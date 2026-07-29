@@ -11,8 +11,8 @@ export function useDocumentMetadata({ title, description, image, url }: Metadata
   useEffect(() => {
     const defaultTitle = 'StayEase — Premium Hotel, Villa & Property Booking Platform';
     const defaultDesc = 'Book hotels, villas, apartments, guest houses and premium accommodations with secure online payment, instant confirmation and professional property management.';
-    const defaultImage = 'https://stay-ease-frontend-nu.vercel.app/og-image.jpg';
-    const baseUrl = 'https://stay-ease-frontend-nu.vercel.app';
+    const defaultImage = 'https://stayease.online/og-image.jpg';
+    const baseUrl = 'https://stayease.online';
     
     // If a title is provided, format it professionally. If not, use the default title exactly.
     const finalTitle = title ? `${title} | StayEase` : defaultTitle;

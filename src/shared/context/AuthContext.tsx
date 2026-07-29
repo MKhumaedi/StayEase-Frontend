@@ -8,6 +8,8 @@ interface AuthContextType {
   login: (user: User, token: string) => void;
   logout: () => void;
   updateRoleInContext: (newRole: UserRole) => Promise<boolean>;
+  updateUserInContext: (updatedData: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,10 +70,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const formatAvatarUrl = (rawUrl?: string | null): string | undefined => {
+    if (!rawUrl) return undefined;
+    if (rawUrl.includes('dicebear.com') || rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) {
+      return rawUrl;
+    }
+    const cleanUrl = rawUrl.split('?')[0];
+    return `${cleanUrl}?v=${Date.now()}`;
+  };
+
   const login = (userData: User, userToken: string) => {
+    let formattedUser = { ...userData };
+    if (userData.avatarUrl) {
+      formattedUser.avatarUrl = formatAvatarUrl(userData.avatarUrl);
+    }
     localStorage.setItem('stayease_token', userToken);
-    localStorage.setItem('stayease_user', JSON.stringify(userData));
-    setUser(userData);
+    localStorage.setItem('stayease_user', JSON.stringify(formattedUser));
+    setUser(formattedUser);
     setToken(userToken);
   };
 
@@ -80,6 +95,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('stayease_user');
     setUser(null);
     setToken(null);
+  };
+
+  const updateUserInContext = (updatedData: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      let newAvatarUrl = updatedData.avatarUrl !== undefined ? updatedData.avatarUrl : prev.avatarUrl;
+      if (newAvatarUrl) {
+        newAvatarUrl = formatAvatarUrl(newAvatarUrl);
+      }
+      const updated = {
+        ...prev,
+        ...updatedData,
+        ...(newAvatarUrl !== undefined ? { avatarUrl: newAvatarUrl } : {})
+      };
+      localStorage.setItem('stayease_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const refreshUser = async () => {
+    const currentToken = token || localStorage.getItem('stayease_token');
+    if (!currentToken) return;
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          let newAvatarUrl = data.user.avatarUrl;
+          if (newAvatarUrl) {
+            newAvatarUrl = formatAvatarUrl(newAvatarUrl);
+          }
+          const updatedUser = { ...data.user, avatarUrl: newAvatarUrl };
+          localStorage.setItem('stayease_user', JSON.stringify(updatedUser));
+          setUser(updatedUser);
+        }
+      }
+    } catch (err) {
+      console.error('Error refreshing user profile:', err);
+    }
   };
 
   const updateRoleInContext = async (newRole: UserRole): Promise<boolean> => {
@@ -107,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, updateRoleInContext }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, updateRoleInContext, updateUserInContext, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

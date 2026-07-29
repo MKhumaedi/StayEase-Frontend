@@ -40,7 +40,10 @@ export function AppRoutes({ path, params, user, onNavigate }: RoutesProps) {
   if (path === '/register') return <Register onNavigate={onNavigate} />;
   if (path === '/about') return <AboutPage onNavigate={onNavigate} />;
   if (path === '/verify-email') return <VerifyEmail onNavigate={onNavigate} params={params} />;
-  if (path === '/auth/callback') return <VerifyEmail onNavigate={onNavigate} params={params} />;
+  if (path === '/auth/callback') {
+    if (window.location.search.includes('code=')) return <OAuthCallback />;
+    return <VerifyEmail onNavigate={onNavigate} params={params} />;
+  }
   if (path === '/auth/callback-oauth') return <OAuthCallback />;
   if (path === '/forgot-password') return <ForgotPassword onNavigate={onNavigate} />;
   if (path === '/reset-password') return <ResetPassword onNavigate={onNavigate} params={params} />;

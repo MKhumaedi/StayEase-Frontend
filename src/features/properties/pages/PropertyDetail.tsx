@@ -276,7 +276,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
   const propertyTitle = data?.property ? data.property.name : '';
   const propertyDesc = data?.property ? data.property.description : '';
   const propertyImage = data?.property && data.property.imageUrls && data.property.imageUrls.length > 0 ? data.property.imageUrls[0] : '';
-  const propertyUrl = data?.property ? `https://stay-ease-frontend-nu.vercel.app/property/${data.property.slug || data.property.id}` : '';
+  const propertyUrl = data?.property ? `https://stayease.online/property/${data.property.slug || data.property.id}` : '';
 
   useDocumentMetadata({
     title: propertyTitle,

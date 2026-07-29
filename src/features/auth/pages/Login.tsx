@@ -27,66 +27,70 @@ export default function Login({ onNavigate }: LoginProps) {
   }, []);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Izinkan origin dari domain yang sama agar aman dan tidak memblokir localhost / production
-      if (event.origin !== window.location.origin && !event.origin.includes('localhost')) {
-        return;
-      }
+    let handledSuccess = false;
 
+    const handleOAuthSuccess = (user: any, token: string) => {
+      if (!user || !token || handledSuccess) return;
+      handledSuccess = true;
+
+      authContextLogin(user, token);
+      setGoogleLoading(false);
+      setError('');
+      setHint('');
+
+      if (user.role === UserRole.ADMIN) {
+        onNavigate('/admin');
+      } else {
+        onNavigate(user.role === UserRole.TENANT ? '/dashboard' : '/my-bookings');
+      }
+    };
+
+    const handleOAuthError = (errorMsg: string) => {
+      setError(errorMsg);
+      setGoogleLoading(false);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { user, token } = event.data;
-        
-        // Eksekusi login ke AuthContext Anda
-        authContextLogin(user, token);
-        setGoogleLoading(false);
-        setHint(`Logged in successfully as ${user.name}`);
-        
-        // Arahkan ke halaman utama/dashboard sesuai role
-        setTimeout(() => {
-          if (user.role === 'ADMIN') {
-            onNavigate('/admin');
-          } else if (user.role === 'TENANT') {
-            onNavigate('/dashboard');
-          } else {
-            onNavigate('/my-bookings');
-          }
-        }, 500);
+        handleOAuthSuccess(event.data.user, event.data.token);
       } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        setError(event.data.error || 'Google authentication failed');
-        setGoogleLoading(false);
+        handleOAuthError(event.data.error || 'Google authentication failed');
+      }
+    };
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('stayease_oauth_channel');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+          handleOAuthSuccess(event.data.user, event.data.token);
+        } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+          handleOAuthError(event.data.error || 'Google authentication failed');
+        }
+      };
+    } catch (e) {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'stayease_oauth_event' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.type === 'OAUTH_AUTH_SUCCESS') {
+            handleOAuthSuccess(parsed.user, parsed.token);
+          } else if (parsed.type === 'OAUTH_AUTH_ERROR') {
+            handleOAuthError(parsed.error || 'Google authentication failed');
+          }
+        } catch (err) {}
       }
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [authContextLogin, onNavigate]);
+    window.addEventListener('storage', handleStorage);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isOAuthSuccess = params.get('oauth_success');
-    const oauthToken = params.get('token');
-    const oauthUserJson = params.get('user');
-
-    if (isOAuthSuccess === 'true' && oauthToken && oauthUserJson) {
-      try {
-        const parsedUser = JSON.parse(decodeURIComponent(oauthUserJson));
-        
-        // Eksekusi fungsi login bawaan context aplikasi Anda
-        authContextLogin(parsedUser, oauthToken);
-        setHint(`Logged in as ${parsedUser.name} (${parsedUser.role})`);
-        
-        // Alihkan halaman sesuai role user
-        setTimeout(() => {
-          if (parsedUser.role === UserRole.ADMIN) {
-            onNavigate('/admin');
-          } else {
-            onNavigate(parsedUser.role === UserRole.TENANT ? '/dashboard' : '/my-bookings');
-          }
-        }, 1000);
-      } catch (e) {
-        setError('Failed to parse OAuth user data');
-      }
-    }
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (channel) channel.close();
+    };
   }, [authContextLogin, onNavigate]);
 
   const handleGoogleLogin = async () => {
@@ -96,22 +100,40 @@ export default function Login({ onNavigate }: LoginProps) {
     try {
       const { getSupabaseClient } = await import('../../../shared/services/supabase');
       const supabase = await getSupabaseClient();
-      
       const redirectUrl = `${window.location.origin}/api/auth/callback`;
-      
-      // Lakukan redirect penuh pada tab yang sama
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          // Memaksa Google menampilkan jendela pemilihan akun di perangkat
+          skipBrowserRedirect: true,
           queryParams: {
-            prompt: 'select_account'
+            prompt: 'select_account',
           }
         }
       });
-      
       if (signInError) throw signInError;
+      if (!data?.url) throw new Error('Failed to generate Google authentication URL');
+
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      const popup = window.open(
+        data.url,
+        'stayease_google_oauth',
+        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=yes`
+      );
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups for StayEase to authenticate with Google.');
+      }
+
+      // Berhenti loading otomatis saat fokus kembali ke jendela utama (popup ditutup/selesai)
+      const handleFocus = () => {
+        setGoogleLoading(false);
+        window.removeEventListener('focus', handleFocus);
+      };
+      window.addEventListener('focus', handleFocus);
+
     } catch (err: any) {
       console.error('[GoogleLogin] Error:', err);
       setError(err.message || 'Failed to start Google sign-in');
@@ -218,7 +240,7 @@ export default function Login({ onNavigate }: LoginProps) {
         )}
 
         {/* OAuth Buttons */}
-        {/* <div className="flex flex-col gap-2 mb-4">
+        <div className="flex flex-col gap-2 mb-4">
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -241,13 +263,13 @@ export default function Login({ onNavigate }: LoginProps) {
             <Apple className="w-4 h-4 text-slate-400" />
             Continue with Apple
           </button>
-        </div> */}
+        </div>
 
-        {/* <div className="relative flex py-2 items-center mb-4">
-          <div className="grow border-t border-slate-100"></div>
-          <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or sign in with email</span>
-          <div className="grow border-t border-slate-100"></div>
-        </div> */}
+        <div className="relative flex py-2 items-center mb-4">
+          <div className="flex-grow border-t border-slate-100"></div>
+          <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or sign in with email</span>
+          <div className="flex-grow border-t border-slate-100"></div>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -257,7 +279,7 @@ export default function Login({ onNavigate }: LoginProps) {
               <input 
                 required 
                 type="email" 
-                placeholder="Email Address" 
+                placeholder="you@domain.com" 
                 value={email} 
                 onChange={e => setEmail(e.target.value)} 
                 className="w-full bg-slate-50 border border-slate-100 focus:border-indigo-200 focus:bg-white text-xs font-semibold py-2.5 pl-10 pr-4 rounded-xl focus:outline-hidden transition-all text-indigo-950"
@@ -276,7 +298,12 @@ export default function Login({ onNavigate }: LoginProps) {
         </form>
 
         <div className="mt-6 border-t border-slate-100 pt-5 text-center flex flex-col gap-3">
-          
+          <div className="text-[11px] text-slate-450 font-bold">
+            Demo credentials? Try:{' '}
+            <button onClick={() => handleQuickFill('tenant@stayease.com')} className="text-indigo-650 hover:underline">tenant@stayease.com</button>
+            {' • '}
+            <button onClick={() => handleQuickFill('user6@stayease.com')} className="text-indigo-650 hover:underline">user6@stayease.com</button>
+          </div>
           <div className="flex justify-between items-center text-[11px] mt-2">
             <span className="text-slate-450">Don't have an account? <button onClick={() => onNavigate('/register')} className="text-indigo-650 font-black hover:underline">Register</button></span>
             <button onClick={() => onNavigate('/forgot-password')} className="text-slate-450 hover:text-indigo-600 flex items-center gap-0.5"><HelpCircle className="w-3 h-3" /> Forgot Password?</button>

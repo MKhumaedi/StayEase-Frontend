@@ -9,11 +9,18 @@ import { AppRoutes } from './AppRoutes';
 function AppContent() {
   const [path, setPath] = useState<string>(() => {
     const p = window.location.pathname;
+    const s = window.location.search;
     const h = window.location.hash;
+    if (s && (s.includes('code=') || s.includes('error=') || s.includes('error_description='))) {
+      return '/auth/callback-oauth';
+    }
     if (h) {
       const hashParams = new URLSearchParams(h.replace('#', '?'));
       if (hashParams.get('type') === 'recovery') return '/reset-password';
       if (hashParams.get('type') === 'signup') return '/verify-email';
+      if (hashParams.get('code') || hashParams.get('access_token') || hashParams.get('error')) {
+        return '/auth/callback-oauth';
+      }
     }
     return p && p !== '/' ? p : '/';
   });

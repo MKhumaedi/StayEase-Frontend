@@ -2,14 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../../../shared/services/supabase';
 import { Loader2, XCircle } from 'lucide-react';
 
-// Untuk login via Google
-
 function getParams() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    code: params.get('code'),
-    verifier: params.get('verifier')
-  };
+  const searchParams = new URLSearchParams(window.location.search);
+  let code = searchParams.get('code');
+  let verifier = searchParams.get('verifier');
+  let accessToken = searchParams.get('access_token');
+  let refreshToken = searchParams.get('refresh_token');
+
+  if (window.location.hash) {
+    const hashStr = window.location.hash.replace(/^#\/?/, '');
+    const hashParams = new URLSearchParams(hashStr);
+    if (!code) code = hashParams.get('code');
+    if (!verifier) verifier = hashParams.get('verifier');
+    if (!accessToken) accessToken = hashParams.get('access_token');
+    if (!refreshToken) refreshToken = hashParams.get('refresh_token');
+  }
+
+  return { code, verifier, accessToken, refreshToken };
 }
 
 function restoreVerifier(supabase: any, verifier: string | null) {
@@ -17,11 +26,20 @@ function restoreVerifier(supabase: any, verifier: string | null) {
   const supabaseUrl = supabase.supabaseUrl || '';
   const match = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\./);
   const projectRef = match ? match[1] : '';
+
+  localStorage.setItem('sb-auth-token-code-verifier', verifier);
   if (projectRef) {
     localStorage.setItem(`sb-${projectRef}-auth-token-code-verifier`, verifier);
-  } else {
-    localStorage.setItem('sb-auth-token-code-verifier', verifier);
   }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.endsWith('-code-verifier')) {
+        localStorage.setItem(key, verifier);
+      }
+    }
+  } catch (e) {}
 }
 
 async function exchangeBackend(userId: string) {
@@ -38,19 +56,62 @@ async function exchangeBackend(userId: string) {
 }
 
 function notifySuccess(user: any, token: string) {
-  if (window.opener) {
-    window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', user, token }, '*');
-    window.close();
-  } else {
-    window.location.href = '/';
+  try {
+    localStorage.setItem('stayease_token', token);
+    localStorage.setItem('stayease_user', JSON.stringify(user));
+    localStorage.setItem('stayease_oauth_event', JSON.stringify({ type: 'OAUTH_AUTH_SUCCESS', user, token, timestamp: Date.now() }));
+  } catch (e) {
+    console.error('[OAuthCallback] Error saving credentials to localStorage:', e);
   }
+
+  try {
+    const channel = new BroadcastChannel('stayease_oauth_channel');
+    channel.postMessage({ type: 'OAUTH_AUTH_SUCCESS', user, token });
+    channel.close();
+  } catch (e) {
+    // Ignore BroadcastChannel errors if unsupported
+  }
+
+  if (window.opener) {
+    try {
+      window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', user, token }, '*');
+    } catch (e) {
+      console.error('[OAuthCallback] Error posting message to window.opener:', e);
+    }
+  }
+
+  setTimeout(() => {
+    try {
+      window.close();
+    } catch (e) {
+      window.location.href = '/';
+    }
+  }, 100);
 }
 
 function notifyFailure(errMsg: string) {
+  try {
+    localStorage.setItem('stayease_oauth_event', JSON.stringify({ type: 'OAUTH_AUTH_ERROR', error: errMsg, timestamp: Date.now() }));
+  } catch (e) {}
+
+  try {
+    const channel = new BroadcastChannel('stayease_oauth_channel');
+    channel.postMessage({ type: 'OAUTH_AUTH_ERROR', error: errMsg });
+    channel.close();
+  } catch (e) {}
+
   if (window.opener) {
-    window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: errMsg }, '*');
-    setTimeout(() => window.close(), 4000);
+    try {
+      window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: errMsg }, '*');
+    } catch (e) {}
   }
+  setTimeout(() => {
+    try {
+      window.close();
+    } catch (e) {
+      window.location.href = '/login?error=' + encodeURIComponent(errMsg);
+    }
+  }, 3000);
 }
 
 export default function OAuthCallback() {
@@ -59,14 +120,50 @@ export default function OAuthCallback() {
   useEffect(() => {
     const handleExchange = async () => {
       try {
-        const { code, verifier } = getParams();
-        if (!code) throw new Error('No authorization code found in URL');
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#\/?/, ''));
+        const errParam = searchParams.get('error_description') || searchParams.get('error') || hashParams.get('error_description') || hashParams.get('error');
+        if (errParam) {
+          throw new Error(errParam);
+        }
+
+        const { code, verifier, accessToken, refreshToken } = getParams();
         const supabase = await getSupabaseClient();
         restoreVerifier(supabase, verifier);
-        const { data, error: exErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exErr) throw exErr;
-        if (!data?.session?.user) throw new Error('No session returned');
-        const { user, token } = await exchangeBackend(data.session.user.id);
+
+        let supabaseUser: any = null;
+
+        if (code) {
+          const { data, error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (!exErr && data?.session?.user) {
+            supabaseUser = data.session.user;
+          } else if (exErr) {
+            console.warn('[OAuthCallback] exchangeCodeForSession notice:', exErr.message);
+          }
+        }
+
+        if (!supabaseUser && accessToken && refreshToken) {
+          const { data: setSessionData, error: setSessionErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          if (!setSessionErr && setSessionData?.session?.user) {
+            supabaseUser = setSessionData.session.user;
+          }
+        }
+
+        if (!supabaseUser) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            supabaseUser = sessionData.session.user;
+          }
+        }
+
+        if (!supabaseUser) {
+          throw new Error('No valid authorization code or authentication session found');
+        }
+
+        const { user, token } = await exchangeBackend(supabaseUser.id);
         notifySuccess(user, token);
       } catch (err: any) {
         console.error('[OAuthCallback] Error:', err);
@@ -99,4 +196,3 @@ export default function OAuthCallback() {
     </div>
   );
 }
-
