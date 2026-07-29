@@ -14,7 +14,7 @@ export default function MissionVision({ language }: MissionVisionProps) {
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16 px-4">
-      <div className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100/40 p-8 rounded-3xl flex flex-col gap-4">
+      <div className="bg-linear-to-br from-indigo-50/50 to-white border border-indigo-100/40 p-8 rounded-3xl flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <span className="p-2.5 bg-indigo-100/80 rounded-2xl text-indigo-600">
             <Target className="w-5 h-5" />
@@ -26,7 +26,7 @@ export default function MissionVision({ language }: MissionVisionProps) {
         </p>
       </div>
 
-      <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-200/50 p-8 rounded-3xl flex flex-col gap-4">
+      <div className="bg-linear-to-br from-slate-50 to-white border border-slate-200/50 p-8 rounded-3xl flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <span className="p-2.5 bg-slate-100 rounded-2xl text-slate-700">
             <Eye className="w-5 h-5" />

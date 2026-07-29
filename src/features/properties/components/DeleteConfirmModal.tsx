@@ -87,7 +87,7 @@ export function DeleteConfirmModal({
           onClick={() => {
             if (!isDeleting) onClose();
           }}
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-indigo-950/70 backdrop-blur-xs select-none"
+          className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-indigo-950/70 backdrop-blur-xs select-none"
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}

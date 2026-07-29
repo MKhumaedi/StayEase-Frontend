@@ -71,7 +71,7 @@ function MidtransPaymentSection({ loading, onPay, language }: { loading: boolean
         <p>{language === 'en' ? 'Pay seamlessly using QRIS or select virtual accounts.' : 'Bayar dengan kode QRIS atau akun virtual yang tersedia.'}</p>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
-        <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" /> {language === 'en' ? 'Secured by Midtrans Snap protocol.' : 'Diamankan oleh protokol Midtrans Snap.'}
+        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" /> {language === 'en' ? 'Secured by Midtrans Snap protocol.' : 'Diamankan oleh protokol Midtrans Snap.'}
       </div>
       <button 
         onClick={onPay} 

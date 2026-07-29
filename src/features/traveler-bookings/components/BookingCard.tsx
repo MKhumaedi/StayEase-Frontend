@@ -36,7 +36,7 @@ function BookingImage({ bk }: { bk: TravelerBooking }) {
     <img
       src={imgUrl}
       alt={prop.name}
-      className="w-24 h-24 rounded-lg object-cover flex-shrink-0 animate-fade-in border border-slate-100"
+      className="w-24 h-24 rounded-lg object-cover shrink-0 animate-fade-in border border-slate-100"
       referrerPolicy="no-referrer"
     />
   );
@@ -212,10 +212,10 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
           disabled={isSubmitting || isSuccess}
           className={`px-3 py-1.5 text-white font-bold text-xs rounded-xl shadow-xs transition-all duration-300 ease-out flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 select-none
             ${isSuccess 
-              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-lg scale-100 cursor-default' 
+              ? 'bg-linear-to-r from-emerald-500 to-teal-500 shadow-lg scale-100 cursor-default' 
               : isSubmitting
-                ? 'bg-gradient-to-r from-purple-500 to-indigo-500 opacity-50 cursor-not-allowed'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:shadow-lg hover:brightness-105 hover:scale-105 hover:-translate-y-0.5 active:scale-95 cursor-pointer'
+                ? 'bg-linear-to-r from-purple-500 to-indigo-500 opacity-50 cursor-not-allowed'
+                : 'bg-linear-to-r from-indigo-600 to-purple-600 hover:shadow-lg hover:brightness-105 hover:scale-105 hover:-translate-y-0.5 active:scale-95 cursor-pointer'
             }
           `}
         >

@@ -77,7 +77,7 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 font-sans">
-      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 p-8 rounded-2xl border border-slate-800 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 shadow-md">
+      <div className="bg-linear-to-r from-indigo-950 via-slate-900 to-indigo-900 p-8 rounded-2xl border border-slate-800 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 shadow-md">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-indigo-400 bg-indigo-600 text-white font-black flex items-center justify-center select-none text-xl">
             {hasAvatar ? (
@@ -94,7 +94,7 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
 
         <div className="flex gap-6">
           <div className="bg-white/10 p-4 rounded-xl border border-white/5 backdrop-blur-sm flex items-center gap-3">
-            <Gift className="w-8 h-8 text-indigo-300 flex-shrink-0" />
+            <Gift className="w-8 h-8 text-indigo-300 shrink-0" />
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-300 block">
                 {language === 'en' ? 'Loyalty Points' : 'Poin Loyalitas'}
@@ -105,7 +105,7 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
             </div>
           </div>
           <div className="bg-white/10 p-4 rounded-xl border border-white/5 backdrop-blur-sm flex items-center gap-3">
-            <Wallet className="w-8 h-8 text-indigo-300 flex-shrink-0" />
+            <Wallet className="w-8 h-8 text-indigo-300 shrink-0" />
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-300 block">
                 {language === 'en' ? 'Available Credits' : 'Kredit Tersedia'}

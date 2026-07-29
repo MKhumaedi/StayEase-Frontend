@@ -948,7 +948,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                       </div>
                     </div>
 
-                    <div className="flex items-center md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
+                    <div className="flex md:flex-col items-end justify-between md:justify-center gap-3 mt-3 md:mt-0 border-t border-slate-100 md:border-none pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Price per night' : 'Harga per malam'}</span>
                         <span className="text-lg font-black text-indigo-950 block">{formatCurrencyIDR(r.basePrice)}</span>
@@ -1159,7 +1159,7 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
                 <div className="md:col-span-7 bg-slate-100 rounded-2xl overflow-hidden border border-slate-150 h-56 relative group shadow-xs">
-                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] bg-slate-50 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [bg-size:16px_16px] bg-slate-50 flex items-center justify-center">
                     <div className="text-center p-6 relative z-10">
                       <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2 text-indigo-600 animate-bounce">
                         <MapPin className="w-6 h-6" />
@@ -1214,52 +1214,6 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
             </div>
           )}
 
-          {/* 9. RELATED PROPERTIES */}
-          {relatedProperties.length > 0 && (
-            <div className="border-t border-slate-100 pt-6">
-              <h2 className="text-lg font-bold text-slate-800 mb-4 font-display">
-                {language === 'en' ? 'Similar Properties' : 'Properti Serupa'}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {relatedProperties.map((p) => (
-                  <button 
-                    key={p.id}
-                    onClick={() => {
-                      onNavigate(`/property/${p.slug || p.id}`);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className="p-3 bg-white border border-slate-100 rounded-2xl hover:border-indigo-200 hover:scale-[1.02] hover:shadow-xs transition-all duration-200 text-left cursor-pointer flex flex-col gap-2.5"
-                  >
-                    <div className="aspect-video w-full rounded-xl bg-slate-50 overflow-hidden border border-slate-50">
-                      <img 
-                        src={p.imageUrls?.[0] || 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80'} 
-                        alt={p.name} 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <div className="px-1">
-                      <span className="text-[10px] text-slate-400 font-bold block mb-1">
-                        {p.location}
-                      </span>
-                      <h4 className="font-extrabold text-slate-800 text-xs line-clamp-1 mb-1">
-                        {p.name}
-                      </h4>
-                      <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-50">
-                        <span className="text-[10px] font-black text-indigo-950 font-sans">
-                          {formatCurrencyIDR(p.basePrice)} <span className="text-[9px] font-medium text-slate-400">/ {t.common.night}</span>
-                        </span>
-                        <div className="flex items-center gap-0.5 text-[10px] font-extrabold text-amber-500">
-                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                          <span>{parseFloat(p.rating.toString()).toFixed(1)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
 

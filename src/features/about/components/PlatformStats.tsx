@@ -9,7 +9,7 @@ export default function PlatformStats({ language }: PlatformStatsProps) {
 
   return (
     <section className="bg-slate-900 border border-slate-800 text-white p-8 md:p-12 rounded-3xl mb-16 shadow-lg relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-tr from-indigo-950/40 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-tr from-indigo-950/40 via-transparent to-transparent pointer-events-none" />
       <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
         {list.map((item, idx) => (
           <div key={idx} className="flex flex-col gap-1.5 p-2">

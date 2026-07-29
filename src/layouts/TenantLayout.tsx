@@ -52,7 +52,7 @@ export default function TenantLayout({ children, activeTab, onSelectTab }: Tenan
         {/* Sidebar Panel */}
         <aside className="lg:col-span-3 flex flex-col gap-4 bg-slate-50/50 p-4 rounded-3xl border border-slate-100">
           <div className="px-3 py-1">
-            <span className="text-[10px] font-bold text-indigo-650 uppercase tracking-widest block bg-indigo-50/50 py-1 px-2.5 rounded-md inline-block">
+            <span className="text-[10px] font-bold text-indigo-650 uppercase tracking-widest bg-indigo-50/50 py-1 px-2.5 rounded-md inline-block">
               {language === 'en' ? 'Host Console' : 'Konsol Host'}
             </span>
           </div>

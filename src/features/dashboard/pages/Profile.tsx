@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../../shared/i18n';
 import { useDocumentMetadata } from '../../../hooks/useDocumentMetadata';
+import { UserLocationSection } from '../components/UserLocationSection';
 
 // Helper to extract initials from name
 export function getInitials(name?: string): string {
@@ -519,6 +520,9 @@ export default function Profile() {
               </span>
             </div>
           </div>
+
+          {/* Dynamic User Location */}
+          <UserLocationSection />
 
           {/* SaaS Metadata Read-Only parameters (Created, Last Login, verification status) */}
           <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-4 flex flex-col gap-3.5 text-xs font-semibold text-slate-650">

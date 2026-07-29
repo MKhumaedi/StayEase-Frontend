@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../../../shared/services/supabase';
 import { Loader2, XCircle } from 'lucide-react';
 
+// Untuk login via Google
+
 function getParams() {
   const params = new URLSearchParams(window.location.search);
   return {

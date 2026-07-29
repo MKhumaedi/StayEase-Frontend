@@ -152,7 +152,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       {toast && (
         <div 
           id="wishlist-toast" 
-          className={`fixed top-5 right-5 z-[21000] flex items-center gap-2 px-4 py-3 rounded-2xl border text-xs font-black shadow-lg shadow-indigo-950/10 animate-fade-in transition-all ${
+          className={`fixed top-5 right-5 z-21000 flex items-center gap-2 px-4 py-3 rounded-2xl border text-xs font-black shadow-lg shadow-indigo-950/10 animate-fade-in transition-all ${
             toast.type === 'success' 
               ? 'bg-emerald-50 border-emerald-100 text-emerald-800' 
               : 'bg-rose-50 border-rose-100 text-rose-800'

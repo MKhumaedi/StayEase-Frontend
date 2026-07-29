@@ -14,7 +14,7 @@ interface PropertyDetailModalProps {
 const ModalHeader = ({ coverImage, name, categoryName, onClose, closeTitle }: { coverImage: string, name: string, categoryName: string, onClose: () => void, closeTitle: string }) => (
   <div className="relative h-48 bg-slate-100 shrink-0">
     <img src={coverImage} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+    <div className="absolute inset-0 bg-linear-to-t from-slate-950/70 via-transparent to-transparent" />
     <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/90 hover:bg-slate-100 rounded-full text-slate-700 cursor-pointer shadow-md transition-colors" title={closeTitle}>
       <X className="w-4 h-4" />
     </button>
@@ -37,7 +37,7 @@ const ModalStats = ({ rating, count, beds, baths, sqft, lang }: { rating?: numbe
   const hasReviews = count !== undefined && count > 0;
   return (
     <div className="grid grid-cols-4 gap-2.5 text-center select-none">
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/50 flex flex-col justify-center items-center min-h-[4.5rem]">
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/50 flex flex-col justify-center items-center min-h-18">
         {hasReviews ? (
           <>
             <Star className="w-3.5 h-3.5 text-amber-500 mx-auto mb-0.5 fill-amber-500 shrink-0" />
@@ -139,7 +139,7 @@ export function PropertyDetailModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-indigo-950/60 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-indigo-950/60 backdrop-blur-sm overflow-y-auto">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

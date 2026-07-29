@@ -142,23 +142,23 @@ export default function AdminLayout({
       {/* Background slide-over overlay for Mobile */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[1000] md:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-1000 md:hidden transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-[1001] bg-gradient-to-b from-[#0F172A] to-[#111827] text-slate-100 flex flex-col shrink-0 border-r border-slate-800 transition-all duration-300 md:translate-x-0 md:sticky md:top-0 md:h-screen
-          ${mobileMenuOpen ? 'translate-x-0 w-[280px]' : '-translate-x-full md:translate-x-0'}
-          ${isCollapsed ? 'md:w-[80px]' : 'md:w-[280px]'}
+          fixed inset-y-0 left-0 z-1001 bg-linear-to-b from-[#0F172A] to-[#111827] text-slate-100 flex flex-col shrink-0 border-r border-slate-800 transition-all duration-300 md:translate-x-0 md:sticky md:top-0 md:h-screen
+          ${mobileMenuOpen ? 'translate-x-0 w-70' : '-translate-x-full md:translate-x-0'}
+          ${isCollapsed ? 'md:w-20' : 'md:w-70'}
         `}
         id="admin-sidebar"
       >
         {/* Branding & Logo Area */}
         <div className="p-5 border-b border-slate-800/60 relative flex items-center justify-between h-18 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-500/20 shrink-0">
+            <span className="bg-linear-to-br from-indigo-500 to-indigo-700 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-500/20 shrink-0">
               <Sparkles className="h-5 w-5" />
             </span>
             {(!isCollapsed || mobileMenuOpen) && (
@@ -176,7 +176,7 @@ export default function AdminLayout({
           <button 
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:flex absolute -right-3 top-6 bg-slate-800 hover:bg-indigo-600 border border-slate-700 hover:border-indigo-500 hover:text-white text-slate-400 w-6.5 h-6.5 items-center justify-center rounded-full cursor-pointer transition shadow-md z-[100]"
+            className="hidden md:flex absolute -right-3 top-6 bg-slate-800 hover:bg-indigo-600 border border-slate-700 hover:border-indigo-500 hover:text-white text-slate-400 w-6.5 h-6.5 items-center justify-center rounded-full cursor-pointer transition shadow-md z-100"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
             {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
@@ -222,7 +222,7 @@ export default function AdminLayout({
                         group relative w-full flex items-center justify-start rounded-xl text-xs font-semibold tracking-wide transition duration-200 cursor-pointer focus:outline-hidden
                         ${isCollapsed && !mobileMenuOpen ? 'p-3 justify-center' : 'px-3.5 py-2.5 gap-3.5'}
                         ${isActive 
-                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-650/15 border-l-3 border-indigo-400' 
+                          ? 'bg-linear-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-650/15 border-l-3 border-indigo-400' 
                           : 'text-slate-400 hover:bg-slate-800/45 hover:text-white'
                         }
                       `}
@@ -252,7 +252,7 @@ export default function AdminLayout({
 
                       {/* Collapsed Tooltip Hover */}
                       {isCollapsed && !mobileMenuOpen && (
-                        <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] shadow-xl border border-slate-800 whitespace-nowrap">
+                        <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-100 shadow-xl border border-slate-800 whitespace-nowrap">
                           {item.label}
                           {item.badge !== undefined && item.badge > 0 && (
                             <span className="ml-1.5 text-[9px] text-indigo-405 font-bold bg-indigo-500/10 text-indigo-400 px-1 py-0.2 rounded">
@@ -290,7 +290,7 @@ export default function AdminLayout({
                 id="sidebar-back-to-website-btn-collapsed"
               >
                 <ArrowLeft className="h-4.5 w-4.5" />
-                <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] shadow-xl border border-slate-800 whitespace-nowrap">
+                <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-100 shadow-xl border border-slate-800 whitespace-nowrap">
                   Back to Website
                 </div>
               </button>
@@ -313,7 +313,7 @@ export default function AdminLayout({
                 id="sidebar-sign-out-btn-collapsed"
               >
                 <LogOut className="h-4.5 w-4.5" />
-                <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] shadow-xl border border-slate-800 whitespace-nowrap">
+                <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10.5px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-100 shadow-xl border border-slate-800 whitespace-nowrap">
                   Sign Out
                 </div>
               </button>
@@ -328,7 +328,7 @@ export default function AdminLayout({
         <header className="bg-white border-b border-slate-200/60 h-18 px-6 md:px-8 flex items-center justify-between shrink-0" id="admin-top-header">
           {/* Welcome Message / Location Tracker */}
           <div>
-            <h2 className="hidden md:block text-slate-800 text-sm font-bold tracking-tight uppercase text-[11px] text-slate-400">
+            <h2 className="hidden md:block text-slate-400 text-sm font-bold tracking-tight uppercase text-[11px]">
               Staff Environment Panel
             </h2>
             <p className="text-slate-800 text-sm font-semibold select-all mt-0.5">

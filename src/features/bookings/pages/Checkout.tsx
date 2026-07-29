@@ -41,7 +41,7 @@ export default function Checkout({ params, onNavigate }: CheckoutProps) {
   
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState('+1 123-456-7890');
+  const [phone, setPhone] = useState('+62 81947996680');
   const [proofUrl, setProofUrl] = useState('https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=400&q=80');
 
   const [verifying, setVerifying] = useState(false);

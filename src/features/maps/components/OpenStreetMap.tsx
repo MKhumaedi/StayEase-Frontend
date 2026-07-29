@@ -323,7 +323,7 @@ export function OpenStreetMap({
           <Compass className="w-5 h-5 animate-spin-slow text-slate-400" />
         </div>
         <h4 className="text-xs font-black text-slate-800 tracking-tight">{en ? 'Map Preview' : 'Pratinjau Peta'}</h4>
-        <p className="text-[11px] font-bold text-slate-450 mt-1 max-w-[240px]">
+        <p className="text-[11px] font-bold text-slate-450 mt-1 max-w-60">
           {en ? 'Search a location or enter coordinates' : 'Cari lokasi atau masukkan koordinat untuk melihat pratinjau peta.'}
         </p>
         <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest mt-3.5 px-2.5 py-1 bg-rose-50 border border-rose-100/50 rounded-lg shadow-3xs">
@@ -393,7 +393,7 @@ export function OpenStreetMap({
           </div>
           <div>
             <span className="text-slate-400 text-[8px] uppercase block tracking-wider select-none">{en ? 'Coordinate Accuracy' : 'Akurasi Koordinat'}</span>
-            <span className="text-slate-800 text-xs mt-0.5 block flex items-center gap-1 leading-none">
+            <span className="text-slate-800 text-xs mt-0.5 block items-center gap-1 leading-none">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
               <span>{en ? 'High (GPS Exact)' : 'Tinggi (GPS Eksak)'}</span>
             </span>

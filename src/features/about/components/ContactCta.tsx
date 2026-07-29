@@ -13,11 +13,11 @@ export default function ContactCta({ onNavigate, language }: ContactCtaProps) {
     : 'Masuki ruang kerja yang dirancang untuk fokus kreatif dan kenyamanan eksekutif. Temukan koleksi pilihan.';
 
   return (
-    <section className="bg-gradient-to-tr from-slate-900 to-indigo-950 p-8 md:p-12 rounded-3xl text-center text-white shadow-xl relative overflow-hidden mb-6">
+    <section className="bg-linear-to-tr from-slate-900 to-indigo-950 p-8 md:p-12 rounded-3xl text-center text-white shadow-xl relative overflow-hidden mb-6">
       <div className="absolute top-0 left-0 p-32 bg-indigo-500/10 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="relative max-w-xl mx-auto flex flex-col items-center gap-5">
         <div className="p-3 bg-indigo-500/10 text-indigo-300 rounded-full border border-indigo-400/20">
-          <Sparkles className="w-5 h-5 animate-pulse-slow" />
+          {/* <Sparkles className="w-5 h-5 animate-pulse-slow" /> */}
         </div>
         <h3 className="text-xl md:text-2xl font-black font-display tracking-tight text-white leading-snug">
           {title}

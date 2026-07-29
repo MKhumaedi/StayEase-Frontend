@@ -13,7 +13,7 @@ export function BookingDetailModal({ booking, onClose, formatCurrency }: Props) 
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       {/* Container Modal dengan Custom Hidden Scrollbar */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden font-sans text-xs transition-all animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto [scrollbar:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden font-sans text-xs transition-all animate-in fade-in zoom-in-95 duration-200">
         <ModalHeader bookingCode={booking.bookingCode} onClose={onClose} />
         <ModalBody booking={booking} formatCurrency={formatCurrency} />
       </div>
@@ -101,7 +101,7 @@ function QrCodeBanner({ booking }: { booking: TravelerBooking }) {
       : 'Tunjukkan kode QR ini kepada resepsionis untuk pemindaian instan saat kedatangan.';
 
   return (
-    <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl p-4 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+    <div className="bg-linear-to-r from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl p-4 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
       <div className="flex items-center gap-3 text-center sm:text-left">
         <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
           <QrCode className="w-5 h-5 text-indigo-300" />
@@ -148,7 +148,7 @@ function PropertySection({ booking }: { booking: TravelerBooking }) {
     <div className="border border-slate-100 rounded-2xl p-3.5 bg-slate-50/40">
       <h4 className="font-bold text-indigo-950 mb-2 flex items-center gap-1.5 uppercase tracking-wider text-[9px]">Akomodasi</h4>
       <div className="flex gap-3 items-center">
-        <img src={imgUrl} alt={property.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-slate-200" referrerPolicy="no-referrer" />
+        <img src={imgUrl} alt={property.name} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200" referrerPolicy="no-referrer" />
         <div>
           <p className="font-bold text-slate-800 text-xs font-display">{property.name}</p>
           <p className="text-slate-500 font-semibold flex items-center gap-1 mt-0.5 text-[11px]"><MapPin className="w-3 h-3 text-indigo-600" /> {property.city || 'Indonesia'}</p>
