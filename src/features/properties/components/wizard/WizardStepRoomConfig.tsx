@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit, BedDouble, Bath, Users, Image as ImageIcon, Info, PlusCircle, Check, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, BedDouble, Bath, Users, Image as ImageIcon, Info, PlusCircle, Check, HelpCircle, UploadCloud, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../../../shared/i18n';
+import { useAuth } from '../../../../shared/context/AuthContext';
 
 interface WizardStepRoomConfigProps {
   form: any;
@@ -9,8 +10,54 @@ interface WizardStepRoomConfigProps {
 
 export function WizardStepRoomConfig({ form, setForm }: WizardStepRoomConfigProps) {
   const { language, formatCurrencyIDR } = useLanguage();
+  const { token } = useAuth();
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isUploadingRoomImg, setIsUploadingRoomImg] = useState(false);
+
+  const handleUploadRoomImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      setValidationError(language === 'en' ? 'Only JPG, JPEG, PNG, and WEBP images are allowed.' : 'Hanya gambar JPG, JPEG, PNG, dan WEBP yang diperbolehkan.');
+      return;
+    }
+
+    if (file.size > 1 * 1024 * 1024) {
+      setValidationError(language === 'en' ? 'Image size exceeds 1 MB limit.' : 'Ukuran gambar melebihi batas 1 MB.');
+      return;
+    }
+
+    setIsUploadingRoomImg(true);
+    setValidationError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/uploads/upload', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Room image upload failed');
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        setRoomForm(prev => ({ ...prev, image: data.url }));
+      }
+    } catch (err: any) {
+      setValidationError(err.message || 'Failed to upload room photo');
+    } finally {
+      setIsUploadingRoomImg(false);
+      e.target.value = '';
+    }
+  };
 
   // Active form state for add/edit a room
   const [roomForm, setRoomForm] = useState({
@@ -383,7 +430,7 @@ export function WizardStepRoomConfig({ form, setForm }: WizardStepRoomConfigProp
 
             {/* Room Primary Image selection from uploaded photos */}
             <div className="md:col-span-2 space-y-2 mt-2">
-              <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider flex items-center gap-1.5">
+              <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
                 {language === 'en' ? 'Select Room Cover Photo' : 'Pilih Foto Utama Kamar'}
               </label>
@@ -426,11 +473,33 @@ export function WizardStepRoomConfig({ form, setForm }: WizardStepRoomConfigProp
                 </div>
               )}
 
-              {/* Or manual URL input as a secondary flexible fallback */}
+              {/* Or manual URL input as a secondary flexible fallback or direct file upload */}
               <div className="space-y-1.5 pt-2">
-                <label className="text-[10px] font-bold text-slate-500 block">
-                  {language === 'en' ? 'Or paste a custom direct image URL' : 'Atau tempel URL gambar kustom'}
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-500 block">
+                    {language === 'en' ? 'Or upload / paste custom image URL:' : 'Atau unggah / tempel URL gambar kustom:'}
+                  </label>
+                  <label className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer flex items-center gap-1">
+                    {isUploadingRoomImg ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>{language === 'en' ? 'Uploading...' : 'Mengunggah...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-3 h-3" />
+                        <span>{language === 'en' ? 'Upload file' : 'Unggah berkas'}</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/jpeg,image/png,image/webp" 
+                      className="hidden" 
+                      onChange={handleUploadRoomImage}
+                      disabled={isUploadingRoomImg}
+                    />
+                  </label>
+                </div>
                 <input
                   type="text"
                   value={roomForm.image}

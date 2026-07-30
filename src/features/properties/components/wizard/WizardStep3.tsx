@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ImagePlus, X, Plus } from 'lucide-react';
+import { ImagePlus, X, Plus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../../../shared/i18n';
+import { useAuth } from '../../../../shared/context/AuthContext';
 
 const STOCK_PHOTOS = [
   { name: 'Luxury modern villa with infinity pool', url: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80' },
@@ -9,6 +10,9 @@ const STOCK_PHOTOS = [
   { name: 'Aesthetic cabin forest sanctuary', url: 'https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&w=800&q=80' }
 ];
 
+const MAX_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
 interface WizardStep3Props {
   form: any;
   setForm: React.Dispatch<React.SetStateAction<any>>;
@@ -16,7 +20,11 @@ interface WizardStep3Props {
 
 export function WizardStep3({ form, setForm }: WizardStep3Props) {
   const { language } = useLanguage();
+  const { token } = useAuth();
   const [dragActive, setDragActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -28,21 +36,92 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
     }
   };
 
-  const processFiles = (files: FileList) => {
-    Array.from(files).forEach(file => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const base64Url = event.target.result as string;
-          setForm((prev: any) => ({
-            ...prev,
-            imageUrls: [...prev.imageUrls, base64Url]
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
+  const uploadFileToServer = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch('/api/uploads/upload', {
+      method: 'POST',
+      headers,
+      body: formData
     });
+
+    if (!res.ok) {
+      let errText = 'Upload failed';
+      try {
+        const errJson = await res.json();
+        if (errJson.error) errText = errJson.error;
+      } catch (e) {
+        errText = await res.text();
+      }
+      throw new Error(errText);
+    }
+
+    const data = await res.json();
+    if (!data.url) {
+      throw new Error('Server returned invalid image response URL');
+    }
+    return data.url;
+  };
+
+  const processFiles = async (files: FileList | File[]) => {
+    setUploadError(null);
+    setUploadSuccess(null);
+    const fileArray = Array.from(files);
+
+    if (fileArray.length === 0) return;
+
+    // Validate files on client side
+    for (const file of fileArray) {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        setUploadError(
+          language === 'en'
+            ? `Invalid file format for "${file.name}". Only JPG, JPEG, PNG, and WEBP images are allowed.`
+            : `Format berkas "${file.name}" tidak valid. Hanya gambar JPG, JPEG, PNG, dan WEBP yang diperbolehkan.`
+        );
+        return;
+      }
+
+      if (file.size > MAX_SIZE_BYTES) {
+        setUploadError(
+          language === 'en'
+            ? `File "${file.name}" exceeds the 1 MB size limit (Size: ${(file.size / (1024 * 1024)).toFixed(2)} MB).`
+            : `Berkas "${file.name}" melebihi batas ukuran 1 MB (Ukuran: ${(file.size / (1024 * 1024)).toFixed(2)} MB).`
+        );
+        return;
+      }
+    }
+
+    setIsUploading(true);
+    const newUploadedUrls: string[] = [];
+
+    try {
+      for (const file of fileArray) {
+        const uploadedUrl = await uploadFileToServer(file);
+        newUploadedUrls.push(uploadedUrl);
+      }
+
+      setForm((prev: any) => ({
+        ...prev,
+        imageUrls: [...prev.imageUrls, ...newUploadedUrls]
+      }));
+
+      setUploadSuccess(
+        language === 'en'
+          ? `Successfully uploaded ${newUploadedUrls.length} image(s).`
+          : `Berhasil mengunggah ${newUploadedUrls.length} gambar.`
+      );
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload images to server.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -57,6 +136,7 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       processFiles(e.target.files);
+      e.target.value = ''; // Reset input value to allow re-uploading same file
     }
   };
 
@@ -106,20 +186,50 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
             type="file"
             id="file-upload"
             multiple
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
             onChange={handleFileSelect}
             className="hidden"
+            disabled={isUploading}
           />
           
-          <ImagePlus className="w-8 h-8 mx-auto text-slate-400 mb-2 animate-pulse" />
-          <p className="text-xs font-bold text-slate-700">
-            {language === 'en' ? 'Drag and drop property photos, or ' : 'Tarik & lepas foto properti ke sini, atau '}
-            <label htmlFor="file-upload" className="text-indigo-600 hover:underline cursor-pointer">
-              {language === 'en' ? 'browse files' : 'cari berkas'}
-            </label>
-          </p>
-          <p className="text-[10px] text-slate-400 mt-1">Supports JPEG, PNG, WEBP (offline base64 conversions)</p>
+          {isUploading ? (
+            <div className="py-2">
+              <Loader2 className="w-8 h-8 mx-auto text-indigo-600 animate-spin mb-2" />
+              <p className="text-xs font-bold text-indigo-900">
+                {language === 'en' ? 'Uploading images via multipart/form-data...' : 'Mengunggah gambar via multipart/form-data...'}
+              </p>
+            </div>
+          ) : (
+            <>
+              <ImagePlus className="w-8 h-8 mx-auto text-slate-400 mb-2 animate-pulse" />
+              <p className="text-xs font-bold text-slate-700">
+                {language === 'en' ? 'Drag and drop property photos, or ' : 'Tarik & lepas foto properti ke sini, atau '}
+                <label htmlFor="file-upload" className="text-indigo-600 hover:underline cursor-pointer">
+                  {language === 'en' ? 'browse files' : 'cari berkas'}
+                </label>
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">
+                {language === 'en' ? 'Supports JPG, JPEG, PNG, WEBP (Max 1 MB per file)' : 'Mendukung JPG, JPEG, PNG, WEBP (Maksimal 1 MB per berkas)'}
+              </p>
+            </>
+          )}
         </div>
+
+        {/* Validation Error Banner */}
+        {uploadError && (
+          <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
+            <AlertCircle className="w-4 h-4 flex-none" />
+            <span>{uploadError}</span>
+          </div>
+        )}
+
+        {/* Success Banner */}
+        {uploadSuccess && (
+          <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-medium">
+            <CheckCircle className="w-4 h-4 flex-none" />
+            <span>{uploadSuccess}</span>
+          </div>
+        )}
 
         {/* Stock stays photos */}
         <div>
@@ -185,3 +295,4 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
     </div>
   );
 }
+
