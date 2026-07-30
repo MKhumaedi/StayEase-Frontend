@@ -147,6 +147,21 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
     }));
   };
 
+  const handleSetCover = (index: number) => {
+    setForm((prev: any) => {
+      const urls = [...prev.imageUrls];
+      // Ambil foto yang dipilih, lalu pindahkan ke urutan paling depan (index 0)
+      const [selectedImage] = urls.splice(index, 1);
+      urls.unshift(selectedImage);
+
+      return {
+        ...prev,
+        imageUrls: urls,
+        coverImageIndex: 0
+      };
+    });
+  };
+
   const handleRemovePhoto = (index: number) => {
     setForm((prev: any) => {
       const urls = prev.imageUrls.filter((_: string, idx: number) => idx !== index);
@@ -272,7 +287,7 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setForm((prev: any) => ({ ...prev, coverImageIndex: i }))}
+                      onClick={() => handleSetCover(i)}
                       className="absolute top-2 left-2 bg-white/90 hover:bg-indigo-600 hover:text-white text-slate-800 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md transition-colors"
                     >
                       Set Cover
@@ -295,4 +310,3 @@ export function WizardStep3({ form, setForm }: WizardStep3Props) {
     </div>
   );
 }
-

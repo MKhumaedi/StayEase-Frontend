@@ -263,7 +263,7 @@ export default function Home({ onNavigate }: HomeProps) {
     <div className="font-sans text-slate-800 antialiased bg-slate-50/50 p-0 m-0">
       
       {/* 1. HERO CAROUSEL SECTION */}
-      <div className="relative h-[580px] sm:h-[640px] md:h-[700px] w-full overflow-hidden bg-slate-950 mt-[-76px]">
+      <div className="relative h-145 sm:h-160 md:h-175 w-full overflow-hidden bg-slate-950 mt-19">
         
         {/* Carousel Background Slide */}
         <AnimatePresence mode="wait">
@@ -275,7 +275,7 @@ export default function Home({ onNavigate }: HomeProps) {
             transition={{ duration: 0.7 }}
             className="absolute inset-0"
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-900/60 z-10" />
+            <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/40 to-slate-900/60 z-10" />
             <img 
               src={carouselSlides[currentSlide].bg} 
               alt={carouselSlides[currentSlide].title} 
@@ -290,7 +290,7 @@ export default function Home({ onNavigate }: HomeProps) {
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 border border-white/20 rounded-full text-[10px] font-black uppercase tracking-wider text-indigo-200 backdrop-blur-md mb-6 animate-pulse">
             <Compass className="w-3.5 h-3.5 text-indigo-300" /> {t.home.carouselTag}
           </span>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight mb-5 leading-[1.1] font-display min-h-[140px] sm:min-h-[120px] md:min-h-[140px]">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight mb-5 leading-[1.1] font-display min-h-35 sm:min-h-30 md:min-h-35">
             {carouselSlides[currentSlide].title}
           </h1>
           <p className="text-slate-200/90 text-sm sm:text-base max-w-xl mb-8 leading-relaxed font-normal">
@@ -365,7 +365,7 @@ export default function Home({ onNavigate }: HomeProps) {
 
               {/* Autocomplete Dropdown List */}
               {showDestDropdown && (
-                <div className="absolute top-[68px] left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl p-2.5 z-40 animate-fade-in-down">
+                <div className="absolute top-17 left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl p-2.5 z-40 animate-fade-in-down">
                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block px-2.5 mb-1.5">{t.home.matchingCities}</span>
                   {filteredCities.length === 0 ? (
                     <div className="text-slate-400 text-xs p-2 text-center">No cities found</div>
@@ -442,7 +442,7 @@ export default function Home({ onNavigate }: HomeProps) {
 
               {/* Guest Increments Panel Dropdown */}
               {showGuestDropdown && (
-                <div className="absolute top-[68px] left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl p-4.5 z-40 flex flex-col gap-3.5 animate-fade-in-down text-slate-800">
+                <div className="absolute top-17 left-0 right-0 bg-white border border-slate-100 shadow-2xl rounded-2xl p-4.5 z-40 flex flex-col gap-3.5 animate-fade-in-down text-slate-800">
                   <div>
                     <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">{t.home.configureOccupants}</h4>
                   </div>
@@ -461,7 +461,7 @@ export default function Home({ onNavigate }: HomeProps) {
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-xs font-black min-w-[14px] text-center">{adults}</span>
+                      <span className="text-xs font-black min-w-3.5 text-center">{adults}</span>
                       <button 
                         type="button"
                         onClick={() => setAdults(prev => Math.min(10, prev + 1))}
@@ -486,7 +486,7 @@ export default function Home({ onNavigate }: HomeProps) {
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-xs font-black min-w-[14px] text-center">{children}</span>
+                      <span className="text-xs font-black min-w-3.5 text-center">{children}</span>
                       <button 
                         type="button"
                         onClick={() => setChildren(prev => Math.min(10, prev + 1))}
@@ -542,7 +542,7 @@ export default function Home({ onNavigate }: HomeProps) {
           <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
             
             {/* Search Property keyword input */}
-            <div className="flex flex-col w-full md:w-auto md:min-w-[180px] lg:min-w-[240px]">
+            <div className="flex flex-col w-full md:w-auto md:min-w-45 lg:min-w-60">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                 {language === 'en' ? 'Search Property' : 'Cari Properti'}
               </span>
@@ -559,7 +559,7 @@ export default function Home({ onNavigate }: HomeProps) {
             </div>
 
             {/* City select dropdown */}
-            <div className="flex flex-col min-w-[140px]">
+            <div className="flex flex-col min-w-35">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.home.cityLabel}</span>
               <select 
                 value={cityFilter}
@@ -574,7 +574,7 @@ export default function Home({ onNavigate }: HomeProps) {
             </div>
 
             {/* Category select dropdown */}
-            <div className="flex flex-col min-w-[155px]">
+            <div className="flex flex-col min-w-39">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.home.categoryLabel}</span>
               <select 
                 value={categoryFilter}
@@ -589,7 +589,7 @@ export default function Home({ onNavigate }: HomeProps) {
             </div>
 
             {/* Price slider */}
-            <div className="flex flex-col min-w-[180px]">
+            <div className="flex flex-col min-w-45">
               <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                 <span>{t.home.maxPriceLimit}</span>
                 <span className="text-indigo-600 font-mono text-xs font-bold">{formatCurrencyIDR(maxPriceFilter)}</span>
@@ -607,7 +607,7 @@ export default function Home({ onNavigate }: HomeProps) {
           </div>
 
           {/* Sort selection */}
-          <div className="flex flex-col min-w-[150px]">
+          <div className="flex flex-col min-w-37.5">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.home.sortOutput}</span>
             <select 
               value={sortOrder}
