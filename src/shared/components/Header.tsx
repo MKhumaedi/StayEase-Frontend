@@ -235,7 +235,7 @@ export default function Header({ currentRole, onChangeRole, activePath, onNaviga
                       onClick={() => selectDestination(d.name)}
                       className="flex items-start gap-3 p-2.5 hover:bg-slate-50 rounded-xl text-left transition-colors cursor-pointer group focus:outline-hidden focus:ring-2 focus:ring-indigo-505"
                     >
-                      <MapPin className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 mt-0.5 shrink-0" />
+                      <MapPin className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 mt-0.5 flex-shrink-0" />
                       <div>
                         <div className="text-[12.5px] font-bold text-slate-800 group-hover:text-indigo-600">{d.name}, {d.region}</div>
                         <div className="text-[10.5px] text-slate-400 leading-normal">{d.description}</div>
@@ -349,7 +349,7 @@ export default function Header({ currentRole, onChangeRole, activePath, onNaviga
                   {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="hidden md:block">
-                  <div className="text-[11.5px] font-black leading-tight truncate max-w-25">{user.name}</div>
+                  <div className="text-[11.5px] font-black leading-tight truncate max-w-[100px]">{user.name}</div>
                   <div className="text-[9px] uppercase font-black tracking-wider leading-none opacity-85">{currentRole.toLowerCase()}</div>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 opacity-80 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`} />
@@ -447,7 +447,7 @@ export default function Header({ currentRole, onChangeRole, activePath, onNaviga
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="absolute top-18.25 left-0 right-0 bg-white border-b border-slate-150 shadow-xl p-5 flex flex-col gap-4 z-40 animate-fade-in lg:hidden">
+        <div className="absolute top-[73px] left-0 right-0 bg-white border-b border-slate-150 shadow-xl p-5 flex flex-col gap-4 z-40 animate-fade-in lg:hidden">
           
           {/* Mobile Language Selector */}
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Language / Bahasa</span>
@@ -536,7 +536,7 @@ export default function Header({ currentRole, onChangeRole, activePath, onNaviga
 
               {/* Brand Narrative */}
               <div className="flex flex-col gap-5 leading-relaxed text-sm text-slate-600 mb-8">
-                <div className="bg-linear-to-tr from-indigo-950 to-slate-900 p-5 rounded-2xl text-white relative overflow-hidden">
+                <div className="bg-gradient-to-tr from-indigo-950 to-slate-900 p-5 rounded-2xl text-white relative overflow-hidden">
                   <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-1/4 translate-y-1/4">
                     <Compass className="w-48 h-48" />
                   </div>

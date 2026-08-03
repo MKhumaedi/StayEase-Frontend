@@ -119,7 +119,7 @@ export default function Navbar({
         body: JSON.stringify({
           requireApproval,
           companyName: `${user?.name || 'StayEase'} Accommodations`,
-          phone: '+6281234567890',
+          phone: '+6283120479594',
           address: 'Bali, Indonesia'
         })
       });
@@ -847,7 +847,7 @@ export default function Navbar({
                             onClick={() => selectDestination(d.name)}
                             className="flex items-start gap-3 p-2.5 hover:bg-slate-50 rounded-xl text-left transition-colors cursor-pointer group"
                           >
-                            <MapPin className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 mt-0.5 flex-shrink-0" />
+                            <MapPin className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 mt-0.5 shrink-0" />
                             <div>
                               <div className="text-[12.5px] font-bold text-slate-800 group-hover:text-indigo-600">{d.name}, {d.region}</div>
                               <div className="text-[10.5px] text-slate-400 leading-normal">{d.description}</div>
@@ -1090,7 +1090,7 @@ export default function Navbar({
                   >
                     <Bell className="w-4 h-4 opacity-80" />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black text-white leading-none shadow-xs animate-pulse">
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black text-white leading-none shadow-xs animate-pulse">
                         {unreadCount}
                       </span>
                     )}
@@ -1135,7 +1135,7 @@ export default function Navbar({
                             <span className="text-xs font-bold text-slate-700 block mb-0.5">
                               {language === 'en' ? 'All caught up!' : 'Sudah rapi!'}
                             </span>
-                            <p className="text-[10px] text-slate-400 font-semibold max-w-[200px] leading-relaxed">
+                            <p className="text-[10px] text-slate-400 font-semibold max-w-50 leading-relaxed">
                               {language === 'en' ? 'No active notifications at the moment.' : 'Tidak ada notifikasi aktif untuk saat ini.'}
                             </p>
                           </div>
@@ -1193,11 +1193,11 @@ export default function Navbar({
                   )}
 
                   {deleteConfirmId && createPortal(
-                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in text-slate-800">
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-9999 animate-fade-in text-slate-800">
                       <div className="bg-white rounded-2xl border border-slate-100 max-w-sm w-full p-5 shadow-2xl animate-scale-up text-slate-800">
                         <div className="flex items-center gap-3.5 mb-3.5 text-amber-500">
                           <span className="p-2 bg-amber-50 rounded-xl">
-                            <AlertTriangle className="w-6 h-6 stroke-[2]" />
+                            <AlertTriangle className="w-6 h-6 stroke-2" />
                           </span>
                           <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 leading-none">
                             {deleteConfirmId === 'all' 
@@ -1261,7 +1261,7 @@ export default function Navbar({
                   )}
                 </div>
                 <div className="hidden md:block">
-                  <div className="text-[11.5px] font-black leading-tight truncate max-w-[100px]">{user.name}</div>
+                  <div className="text-[11.5px] font-black leading-tight truncate max-w-25">{user.name}</div>
                   <div className="text-[9px] uppercase font-black tracking-wider leading-none opacity-85">{role === UserRole.TENANT ? t.navbar.registerAsTenant : t.navbar.continueAsGuest}</div>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 opacity-80 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1269,7 +1269,7 @@ export default function Navbar({
 
               {/* Profile Dropdown List */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-3.5 w-[210px] bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 animate-slide-up text-slate-800">
+                <div className="absolute right-0 mt-3.5 w-52.5 bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 animate-slide-up text-slate-800">
                   {user?.role === UserRole.ADMIN ? (
                     <div className="flex flex-col gap-0.5 px-2">
                       <button 
@@ -1428,7 +1428,7 @@ export default function Navbar({
 
       {/* Mobile Drawer Navigation Slide */}
       {mobileMenuOpen && (
-        <div className="absolute top-[73px] left-0 right-0 bg-white border-b border-slate-150 shadow-xl p-5 flex flex-col gap-4 z-40 lg:hidden text-slate-800 animate-slide-up">
+        <div className="absolute top-18.25 left-0 right-0 bg-white border-b border-slate-150 shadow-xl p-5 flex flex-col gap-4 z-40 lg:hidden text-slate-800 animate-slide-up">
           
           {/* Mobile Language Selector */}
           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{t.navbar.language} / Bahasa</span>
@@ -1623,7 +1623,7 @@ export default function Navbar({
       {/* SECURITY MODAL PORTAL */}
       {/* ================================================= */}
       {showSecurityModal && createPortal(
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in text-slate-800">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-9999 animate-fade-in text-slate-800">
           <div className="bg-white rounded-3xl border border-slate-100 max-w-md w-full p-6 shadow-2xl animate-scale-up text-slate-800 relative">
             <button 
               onClick={() => setShowSecurityModal(false)}
@@ -1634,7 +1634,7 @@ export default function Navbar({
 
             <div className="flex items-center gap-3 mb-4 text-indigo-600">
               <span className="p-2.5 bg-indigo-50 rounded-2xl">
-                <Lock className="w-6 h-6 stroke-[2]" />
+                <Lock className="w-6 h-6 stroke-2" />
               </span>
               <div>
                 <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 leading-none">
@@ -1726,12 +1726,12 @@ export default function Navbar({
             setLoginError('');
             setLoginHint('');
           }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
         >
           <div 
             id="login-modal-card"
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-[420px] rounded-[24px] border border-slate-100 shadow-2xl overflow-hidden relative p-8 flex flex-col gap-6 text-slate-800 animate-slide-up"
+            className="bg-white w-full max-w-105 rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative p-8 flex flex-col gap-6 text-slate-800 animate-slide-up"
           >
             
             {/* Close toggle */}
@@ -1800,9 +1800,9 @@ export default function Navbar({
             </div>
 
             <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-100"></div>
-              <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
-              <div className="flex-grow border-t border-slate-100"></div>
+              <div className="grow border-t border-slate-100"></div>
+              <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
+              <div className="grow border-t border-slate-100"></div>
             </div>
 
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
@@ -1904,12 +1904,12 @@ export default function Navbar({
             setRegError('');
             setRegSuccessData(null);
           }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
         >
           <div 
             id="register-modal-card"
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-[440px] rounded-[24px] border border-slate-100 shadow-2xl overflow-hidden relative p-8 flex flex-col gap-5 text-slate-800 animate-slide-up max-h-[94vh] overflow-y-auto"
+            className="bg-white w-full max-w-110 rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative p-8 flex flex-col gap-5 text-slate-800 animate-slide-up max-h-[94vh] overflow-y-auto"
           >
             
             {/* Close toggle */}
@@ -1981,9 +1981,9 @@ export default function Navbar({
             </div>
 
             <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-100"></div>
-              <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
-              <div className="flex-grow border-t border-slate-100"></div>
+              <div className="grow border-t border-slate-100"></div>
+              <span className="shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or</span>
+              <div className="grow border-t border-slate-100"></div>
             </div>
 
             {/* Form */}
@@ -2137,7 +2137,7 @@ export default function Navbar({
       )}
 
       {showSignOutModal && createPortal(
-        <div id="sign-out-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[10000] animate-fade-in text-slate-800">
+        <div id="sign-out-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-10000 animate-fade-in text-slate-800">
           <div className="bg-white border border-slate-150 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative animate-scale-up text-slate-800">
             <div className="mb-4 text-left">
               <h3 className="text-lg font-black text-indigo-950 font-display">Sign Out</h3>
@@ -2171,7 +2171,7 @@ export default function Navbar({
       )}
 
       {becomeHostModalOpen && createPortal(
-        <div id="become-host-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[10000] animate-fade-in text-slate-800">
+        <div id="become-host-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-10000 animate-fade-in text-slate-800">
           <div className="bg-white border border-slate-150 rounded-3xl max-w-xl w-full p-8 shadow-2xl relative animate-scale-up text-slate-800">
             {/* Header */}
             <div className="border-b border-slate-100 pb-4 mb-5 flex items-center justify-between">

@@ -62,8 +62,6 @@ export function usePropertyFilterOptions() {
   const [maxPrice, setMaxPrice] = useState<number>(cachedData ? cachedData.maxPrice : 5000000);
   const [loading, setLoading] = useState(!cachedData);
   const [error, setError] = useState<Error | null>(null);
-
-  // Tanggal Hari Ini Dinamis (Format YYYY-MM-DD)
   const todayString = getTodayDateString();
 
   useEffect(() => {
