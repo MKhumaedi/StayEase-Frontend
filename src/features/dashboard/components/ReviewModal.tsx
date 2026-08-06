@@ -26,14 +26,29 @@ export function ReviewModal({
   submitting,
   language
 }: Props) {
+  /* ========================================================================= */
+  /* NOTE LOGIC TERBARU: Pengecekan status dibuat case-insensitive & inklusif   */
+  /* ========================================================================= */
+  const rawStatus = (booking?.status || '').toUpperCase();
+  const isBookingFinished = 
+    rawStatus === 'COMPLETED' || 
+    rawStatus === 'CHECKED_OUT' || 
+    rawStatus === 'SELESAI';
+
+  const displayError = error || (!isBookingFinished ? (language === 'en' ? 'You can only submit a review for completed stays.' : 'Ulasan hanya dapat dikirimkan untuk reservasi yang sudah selesai.') : null);
+  /* ========================================================================= */
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-fade-in font-sans text-xs">
-        <ModalHeader code={booking.bookingCode} name={booking.property?.name} onClose={onClose} label={language === 'en' ? 'Leave a Review' : 'Tulis Ulasan StayEase'} />
+        <ModalHeader code={booking?.bookingCode} name={booking?.property?.name} onClose={onClose} label={language === 'en' ? 'Leave a Review' : 'Tulis Ulasan StayEase'} />
         <form onSubmit={onSubmit} className="p-5 flex flex-col gap-4">
-          {error && <div className="bg-red-50 border border-red-200 text-red-650 p-2.5 rounded-lg font-bold text-[11px]">{error}</div>}
+          {displayError && <div className="bg-red-50 border border-red-200 text-red-650 p-2.5 rounded-lg font-bold text-[11px]">{displayError}</div>}
+          
+          {/* Komponen tetap dirender agar form tetap interaktif meskipun status backend bernilai lain */}
           <RatingSelector rating={rating} setRating={setRating} language={language} />
           <CommentInput comment={comment} setComment={setComment} language={language} />
+
           <FormActions submitting={submitting} onClose={onClose} language={language} />
         </form>
       </div>

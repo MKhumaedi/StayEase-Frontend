@@ -1396,6 +1396,29 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
                   className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none" 
                 />
               </div>
+
+              {/* ========================================================================= */}
+              {/* NOTE LOGIC TERBARU: Validasi Kapasitas Kamar vs Jumlah Tamu & Peringatan UI */}
+              {/* ========================================================================= */}
+              {(() => {
+                const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
+                const isCapacityExceeded = selectedRoom ? guestCount > roomCapacity : false;
+
+                if (!isCapacityExceeded) return null;
+
+                return (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-2.5 text-[11px] font-semibold flex items-center gap-2 animate-in fade-in duration-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      {language === 'en'
+                        ? `This room fits max ${roomCapacity} guests. Please select another room or reduce guests.`
+                        : `Kamar ini hanya memuat maks. ${roomCapacity} tamu. Silakan pilih kamar lain atau kurangi jumlah tamu.`}
+                    </span>
+                  </div>
+                );
+              })()}
+              {/* ========================================================================= */}
+
             </div>
 
             {/* Price Displays and Details Breakdown */}
@@ -1477,19 +1500,33 @@ export default function PropertyDetail({ propertyId, onNavigate, params }: Prope
               </div>
             )}
 
+            {/* ========================================================================= */}
+            {/* NOTE LOGIC TERBARU: Menambahkan validasi isCapacityExceeded pada tombol */}
+            {/* ========================================================================= */}
             <button 
-              disabled={!selectedRoom || !isRoomEnabled(selectedRoom) || !startDate || !endDate || (new Date(startDate) >= new Date(endDate)) || guestCount <= 0} 
+              disabled={
+                !selectedRoom || 
+                !isRoomEnabled(selectedRoom) || 
+                !startDate || 
+                !endDate || 
+                (new Date(startDate) >= new Date(endDate)) || 
+                guestCount <= 0 ||
+                (selectedRoom ? guestCount > selectedRoom.capacity : false) // <-- Validasi kapasitas kamar
+              } 
               onClick={handleBook} 
               className="w-full bg-indigo-900 hover:bg-indigo-850 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-extrabold py-3.5 px-4 rounded-2xl text-sm cursor-pointer shadow-indigo-100 shadow-sm transition-all text-center hover:scale-[1.01] active:scale-[0.99]"
             >
               {!selectedRoom 
                 ? (language === 'en' ? 'Please Select a Room First' : 'Silakan Pilih Kamar Dahulu')
                 : !isRoomEnabled(selectedRoom) ? (language === 'en' ? 'Selected Room is Unavailable' : 'Kamar yang Dipilih Tidak Tersedia')
-                : (!startDate || !endDate) ? (language === 'en' ? 'Select Valid Dates' : 'Pilih Tanggal Valid')
-                : (new Date(startDate) >= new Date(endDate)) ? (language === 'en' ? 'Check-in must be before check-out' : 'Check-in harus sebelum check-out')
-                : guestCount <= 0 ? (language === 'en' ? 'Guest count must be > 0' : 'Jumlah tamu harus > 0')
-                : (language === 'en' ? 'Instantiate Booking' : 'Lanjutkan Pemesanan')}
+                : (selectedRoom && guestCount > selectedRoom.capacity) 
+                  ? (language === 'en' ? `Capacity Exceeded (Max ${selectedRoom.capacity})` : `Kapasitas Terlampaui (Maks. ${selectedRoom.capacity} Tamu)`)
+                  : (!startDate || !endDate) ? (language === 'en' ? 'Select Valid Dates' : 'Pilih Tanggal Valid')
+                  : (new Date(startDate) >= new Date(endDate)) ? (language === 'en' ? 'Check-in must be before check-out' : 'Check-in harus sebelum check-out')
+                  : guestCount <= 0 ? (language === 'en' ? 'Guest count must be > 0' : 'Jumlah tamu harus > 0')
+                  : (language === 'en' ? 'Proceed to Booking' : 'Lanjutkan Pemesanan')}
             </button>
+            {/* ========================================================================= */}
 
             {/* Trust Badges section */}
             <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-2.5">

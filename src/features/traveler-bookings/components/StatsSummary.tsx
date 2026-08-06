@@ -3,15 +3,18 @@ import { BookingStats } from '../types/travelerBookings.types';
 import { Calendar, CheckCircle2, Clock, ListOrdered } from 'lucide-react';
 
 interface Props {
-  stats: BookingStats;
+  stats: BookingStats & { completed?: number; checkedOut?: number };
 }
 
 export function StatsSummary({ stats }: Props) {
+  /* NOTE LOGIC TERBARU: Mengambil nilai selesai secara inklusif (completed / checkedOut) */
+  const completedValue = stats?.completedReservations ?? stats?.completed ?? stats?.checkedOut ?? 0;
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-sans text-xs">
       <StatCard label="Total Reservasi" val={stats.totalReservations} icon={<ListOrdered className="w-5 h-5 text-indigo-600" />} />
       <StatCard label="Reservasi Aktif" val={stats.activeReservations} icon={<Calendar className="w-5 h-5 text-emerald-600" />} />
-      <StatCard label="Reservasi Selesai" val={stats.completedReservations} icon={<CheckCircle2 className="w-5 h-5 text-blue-600" />} />
+      <StatCard label="Reservasi Selesai" val={completedValue} icon={<CheckCircle2 className="w-5 h-5 text-blue-600" />} />
       <StatCard label="Menunggu Pembayaran" val={stats.waitingPaymentReservations} icon={<Clock className="w-5 h-5 text-amber-600" />} />
     </div>
   );

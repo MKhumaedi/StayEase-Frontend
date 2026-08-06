@@ -83,15 +83,24 @@ export default function Home({ onNavigate }: HomeProps) {
     setCurrentSlide(prev => (prev - 1 + carouselSlides.length) % carouselSlides.length);
   };
 
-  // Search Section States
-  const { cities, categories, minPrice, maxPrice } = usePropertyFilterOptions();
+  // Search Section States (Mengambil defaultCheckIn secara dinamis dari hook)
+  const { cities, categories, minPrice, maxPrice, defaultCheckIn } = usePropertyFilterOptions();
   const popularCities = cities;
   const [destQuery, setDestQuery] = useState('');
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
-  const [checkIn, setCheckIn] = useState('2026-10-12');
+  
+  // LOGIC: Menggunakan tanggal hari ini secara dinamis sebagai nilai awal check-in
+  const [checkIn, setCheckIn] = useState('');
   const [duration, setDuration] = useState(7);
   
+  // Sinkronisasi tanggal default setelah hook selesai memuat tanggal hari ini
+  useEffect(() => {
+    if (defaultCheckIn && !checkIn) {
+      setCheckIn(defaultCheckIn);
+    }
+  }, [defaultCheckIn]);
+
   // Guest Stepper States
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
@@ -213,7 +222,7 @@ export default function Home({ onNavigate }: HomeProps) {
     e.preventDefault();
     onNavigate('/search', { 
       location: destQuery || 'All', 
-      checkIn,
+      checkIn: checkIn || defaultCheckIn,
       duration,
       guests: `${adults} Adults, ${children} Children`
     });
@@ -367,7 +376,7 @@ export default function Home({ onNavigate }: HomeProps) {
               )}
             </div>
 
-            {/* Check-In Datepicker */}
+            {/* Check-In Datepicker (Dinamis dengan nilai hari ini) */}
             <div className="flex flex-col">
               <label id="check-in-label" className="text-[10px] font-black text-indigo-950 uppercase tracking-wider mb-2 flex items-center gap-1.5 p-1">
                 <Calendar className="w-3.5 h-3.5 text-indigo-600" /> {t.home.checkInDate}
@@ -377,6 +386,7 @@ export default function Home({ onNavigate }: HomeProps) {
                   type="date" 
                   aria-labelledby="check-in-label"
                   value={checkIn}
+                  min={defaultCheckIn}
                   onChange={(e) => setCheckIn(e.target.value)}
                   className="bg-transparent text-xs font-bold text-slate-805 cursor-pointer focus:outline-hidden w-full"
                 />

@@ -15,9 +15,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    // Inisialisasi awal langsung dari localStorage untuk mencegah flash / unauthenticated state sesaat saat refresh
+    try {
+      const storedUser = localStorage.getItem('stayease_user');
+      const storedToken = localStorage.getItem('stayease_token');
+      if (storedUser && storedToken) {
+        return JSON.parse(storedUser);
+      }
+    } catch {
+      // Abaikan error parsing
+    }
+    return null;
+  });
+
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem('stayease_token') || null;
+  });
+  
+  const [loading, setLoading] = useState(false); // Set default ke false karena inisialisasi state sudah dibaca langsung di atas
 
   const loadUser = () => {
     const storedUser = localStorage.getItem('stayease_user');
@@ -29,12 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         localStorage.removeItem('stayease_user');
         localStorage.removeItem('stayease_token');
+        setUser(null);
+        setToken(null);
       }
-    } else {
-      setUser(null);
-      setToken(null);
     }
-    setLoading(false);
   };
 
   useEffect(() => {

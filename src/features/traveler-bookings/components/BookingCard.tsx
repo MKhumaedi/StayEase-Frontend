@@ -29,6 +29,7 @@ export function BookingCard({ booking, onDetail, onReview, formatCurrency, onRel
   );
 }
 
+// LOGIC: Merender gambar properti reservasi dengan gambar cadangan default jika URL tidak tersedia.
 function BookingImage({ bk }: { bk: TravelerBooking }) {
   const prop = bk.property || { imageUrls: [], name: 'StayEase Property' };
   const imgUrl = prop.imageUrls?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
@@ -42,6 +43,7 @@ function BookingImage({ bk }: { bk: TravelerBooking }) {
   );
 }
 
+// LOGIC: Menampilkan informasi utama reservasi seperti nama properti, kamar, kode, tamu, dan rentang tanggal.
 function BookingMainInfo({ bk, formatCurrency }: { bk: TravelerBooking; formatCurrency: (val: number) => string }) {
   const propName = bk.property?.name || 'StayEase Elite Stay';
   return (
@@ -59,6 +61,7 @@ function BookingMainInfo({ bk, formatCurrency }: { bk: TravelerBooking; formatCu
   );
 }
 
+// LOGIC: Menampilkan lencana status reservasi berdasarkan konfigurasi tampilan badge.
 function StatusBadge({ booking }: { booking: TravelerBooking }) {
   const cfg = badgeConfig(booking);
   return (
@@ -68,8 +71,9 @@ function StatusBadge({ booking }: { booking: TravelerBooking }) {
   );
 }
 
+// LOGIC: Memetakan status pemesanan ke label teks dan kelas warna lencana secara inklusif dan dinamis.
 function badgeConfig(bk: TravelerBooking) {
-  const status = bk.status;
+  const status = (bk.status || '').toUpperCase();
   if (status === 'CHECKED_IN' && bk.checkoutRequested) {
     return { lbl: 'Menunggu Konfirmasi Keluar', cls: 'bg-purple-50 text-purple-700 border-purple-200' };
   }
@@ -83,7 +87,7 @@ function badgeConfig(bk: TravelerBooking) {
     CANCELLED: { lbl: 'Dibatalkan', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
     AUTO_EXPIRED: { lbl: 'Kadaluarsa', cls: 'bg-slate-50 text-slate-600 border-slate-200' }
   };
-  return map[status] || { lbl: status, cls: 'bg-slate-50 text-slate-650' };
+  return map[status] || { lbl: bk.status, cls: 'bg-slate-50 text-slate-650' };
 }
 
 function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: TravelerBooking; onDetail: (b: TravelerBooking) => void; onReview: (b: TravelerBooking) => void; onReload?: () => void; onNavigate?: (path: string, params?: any) => void }) {
@@ -98,13 +102,16 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
   const [showRebookModal, setShowRebookModal] = React.useState(false);
   const [showPropertyUnavailableModal, setShowPropertyUnavailableModal] = React.useState(false);
 
-  const isPending = bk.status === 'WAITING_PAYMENT';
-  const isReviewEligible = bk.status === 'COMPLETED' || bk.status === 'CHECKED_OUT';
+  const status = (bk.status || '').toUpperCase();
+  const isPending = status === 'WAITING_PAYMENT';
+  const isReviewEligible = status === 'COMPLETED' || status === 'CHECKED_OUT';
   const hasReviewed = !!bk.review;
   const showReview = isReviewEligible && !hasReviewed;
-  const isOver = bk.status === 'CANCELLED' || bk.status === 'AUTO_EXPIRED' || bk.status === 'COMPLETED' || bk.status === 'CHECKED_OUT';
+  const isOver = status === 'CANCELLED' || status === 'AUTO_EXPIRED' || status === 'COMPLETED' || status === 'CHECKED_OUT';
+
   const payUrl = `/bookings/detail/${bk.id}`;
 
+  // LOGIC: Menutup toast sukses secara otomatis setelah beberapa detik dan memuat ulang data.
   React.useEffect(() => {
     if (successToast) {
       const timer = setTimeout(() => {
@@ -115,6 +122,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
     }
   }, [successToast]);
 
+  // LOGIC: Menutup toast error secara otomatis setelah beberapa detik.
   React.useEffect(() => {
     if (errorToast) {
       const timer = setTimeout(() => {
@@ -124,6 +132,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
     }
   }, [errorToast]);
 
+  // LOGIC: Mengirimkan permintaan check-out mandiri oleh tamu ke server backend.
   const handleRequestCheckOut = async () => {
     if (!token || isSubmitting || isSuccess) return;
     setIsSubmitting(true);
@@ -150,6 +159,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
     }
   };
 
+  // LOGIC: Memproses navigasi pemesanan ulang (rebook) atau memunculkan modal jika properti tidak tersedia.
   const handleRebook = async () => {
     if (isRebooking) return;
     setIsRebooking(true);
@@ -198,15 +208,15 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
   return (
     <div className="flex gap-2 flex-wrap justify-end items-center">
       <button onClick={() => onDetail(bk)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:text-slate-700 bg-white font-bold cursor-pointer transition-colors">
-        {bk.status === 'CONFIRMED' || bk.status === 'CHECKED_IN' ? 'View Reservation' : 'Detail'}
+        {status === 'CONFIRMED' || status === 'CHECKED_IN' ? 'View Reservation' : 'Detail'}
       </button>
       {isPending && <a href={payUrl} className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold transition-colors">Bayar / Unggah Bukti</a>}
-      {bk.status === 'CONFIRMED' && (
+      {status === 'CONFIRMED' && (
         <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-bold text-xs">
           Reservation Confirmed
         </span>
       )}
-      {bk.status === 'CHECKED_IN' && !bk.checkoutRequested && (
+      {status === 'CHECKED_IN' && !bk.checkoutRequested && (
         <button
           onClick={handleRequestCheckOut}
           disabled={isSubmitting || isSuccess}
@@ -235,7 +245,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
           </span>
         </button>
       )}
-      {bk.status === 'CHECKED_IN' && bk.checkoutRequested && (
+      {status === 'CHECKED_IN' && bk.checkoutRequested && (
         <span className="px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg font-bold text-xs">
           Checkout Requested
         </span>
@@ -273,6 +283,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
       )}
 
       {/* Rebook Confirmation Modal */}
+      {/* LOGIC: Menampilkan modal konfirmasi untuk memesan kembali properti yang sama. */}
       {showRebookModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md p-6 font-sans text-xs relative animate-in zoom-in-95 duration-200 text-left">
@@ -329,6 +340,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
       )}
 
       {/* Property Unavailable Modal */}
+      {/* LOGIC: Menampilkan pemberitahuan peringatan apabila properti yang ingin dipesan ulang sudah tidak tersedia. */}
       {showPropertyUnavailableModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md p-6 font-sans text-xs relative animate-in zoom-in-95 duration-200 text-left">
@@ -379,6 +391,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
       )}
 
       {/* Modern Success Toast / Modal */}
+      {/* LOGIC: Menampilkan pemberitahuan toast sukses ketika permintaan check-out berhasil dikirim. */}
       {successToast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
           <div className="bg-emerald-600 text-white rounded-2xl p-5 shadow-2xl max-w-sm border border-emerald-500 flex flex-col gap-3 relative text-left">
@@ -426,6 +439,7 @@ function ActionButtons({ bk, onDetail, onReview, onReload, onNavigate }: { bk: T
       )}
 
       {/* Error Toast */}
+      {/* LOGIC: Menampilkan pemberitahuan toast error jika terjadi kendala pada aksi tombol. */}
       {errorToast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
           <div className="bg-rose-600 text-white rounded-2xl p-4 shadow-2xl max-w-sm border border-rose-500 flex items-center gap-3 relative text-left">

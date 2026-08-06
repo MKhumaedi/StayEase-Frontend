@@ -13,7 +13,9 @@ export function UserRoute({ children, fallbackNavigate }: GuardProps) {
   const { triggerToast } = useWishlist();
 
   useEffect(() => {
+    // Tunggu sampai proses loading autentikasi selesai sepenuhnya
     if (loading) return;
+    
     if (!user) {
       fallbackNavigate('/login');
     } else if (user.role === UserRole.TENANT) {
@@ -43,7 +45,9 @@ export function TenantRoute({ children, fallbackNavigate }: GuardProps) {
   const { user, loading } = useAuth();
 
   useEffect(() => {
+    // Tunggu sampai proses loading autentikasi selesai sepenuhnya
     if (loading) return;
+
     if (!user) {
       fallbackNavigate('/login');
     } else if (user.role !== UserRole.TENANT) {
@@ -70,7 +74,9 @@ export function ProtectedRoute({ children, fallbackNavigate }: GuardProps) {
   const { user, loading } = useAuth();
 
   useEffect(() => {
+    // NOTE LOGIC TERBARU: Mencegah redirect prematur saat proses refresh/loading
     if (loading) return;
+
     if (!user) {
       fallbackNavigate('/login');
     }

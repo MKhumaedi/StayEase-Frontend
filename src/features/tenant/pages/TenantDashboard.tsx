@@ -300,7 +300,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                   <div 
                     key={i} 
                     title={c.isFinancial ? formatCurrencyIDR(c.rawValue) : undefined}
-                    className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-36.25 transition-all duration-300 relative group select-none"
+                    className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-36.25 transition-all duration-300 relative group select-none overflow-hidden"
                   >
                     {/* Beautiful Hover Tooltip */}
                     {c.isFinancial && (
@@ -311,9 +311,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                     )}
 
                     <div>
-                      {/* Top Row: title and Icon */}
-                      <div className="flex items-center justify-between gap-2.5">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block truncate">{c.title}</span>
+                      {/* Top Row: title and Icon (Mencegah teks judul terpotong dengan pengaturan flex wrap & baris fleksibel) */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-snug">{c.title}</span>
                         <span className={`p-2 rounded-xl shrink-0 border ${c.color}`}><Icon className="w-4 h-4" /></span>
                       </div>
 
@@ -365,12 +365,12 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                           setActiveSubTab(c.tabId as any);
                         }
                       }}
-                      className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:shadow-xs flex flex-col justify-between h-full min-h-36.25 text-left transition-all duration-300 cursor-pointer outline-hidden relative group"
+                      className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:shadow-xs flex flex-col justify-between h-full min-h-36.25 text-left transition-all duration-300 cursor-pointer outline-hidden relative group overflow-hidden"
                     >
                       <div>
-                        {/* Top Row: title and Icon */}
-                        <div className="flex items-center justify-between gap-2.5">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block truncate">{c.title}</span>
+                        {/* Top Row: title and Icon (Mencegah judul terpotong dengan pengaturan flex items-start) */}
+                        <div className="flex items-start justify-between gap-2.5">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-snug">{c.title}</span>
                           <span className={`p-2 rounded-xl shrink-0 border ${c.color}`}><Icon className="w-4 h-4" /></span>
                         </div>
                         {/* Main Metric Segment */}
@@ -397,9 +397,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
                 
                 {/* Top Performing */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300 overflow-hidden">
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 leading-snug">
                       {en ? 'Top Performing' : 'Performa Terbaik (Booking)'}
                     </span>
                     <span className="text-[13px] font-medium text-indigo-950 block mt-1 truncate font-display">
@@ -419,9 +419,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                 </div>
 
                 {/* Least Active */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300 overflow-hidden">
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 leading-snug">
                       {en ? 'Least Active' : 'Performa Terendah (Booking)'}
                     </span>
                     <span className="text-[13px] font-medium text-slate-800 block mt-1 truncate font-display">
@@ -441,9 +441,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                 </div>
 
                 {/* Highest Occupancy */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33 transition-all duration-300">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33 transition-all duration-300 overflow-hidden">
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 leading-snug">
                       {en ? 'Highest Occupancy' : 'Okupansi Tertinggi'}
                     </span>
                     <span className="text-[13px] font-medium text-indigo-950 block mt-1 truncate font-display">
@@ -465,7 +465,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                 {/* Highest Revenue Maker */}
                 <div 
                   title={reports.performance?.highestRevenue ? formatCurrencyIDR(reports.performance.highestRevenue.revenue) : undefined}
-                  className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300 relative group"
+                  className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-slate-300 shadow-2xs hover:shadow-xs flex flex-col justify-between h-full min-h-33.75 transition-all duration-300 relative group overflow-hidden"
                 >
                   {reports.performance?.highestRevenue && (
                     <div className="absolute opacity-0 group-hover:opacity-100 pointer-events-none bg-slate-950 text-white text-[10px] py-1.5 px-3 rounded-2xl font-bold font-mono -top-12 left-1/2 -translate-x-1/2 transition-opacity duration-200 shadow-xl whitespace-nowrap z-50">
@@ -475,7 +475,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate?: (p: strin
                   )}
 
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 leading-snug">
                       {en ? 'Highest Revenue Maker' : 'Pendapatan Tertinggi'}
                     </span>
                     <span className="text-[13px] font-bold text-indigo-950 block mt-1 truncate font-display">

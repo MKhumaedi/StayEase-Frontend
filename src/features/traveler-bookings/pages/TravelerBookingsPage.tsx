@@ -19,15 +19,52 @@ export function TravelerBookingsPage({ token, onReview, onNavigate }: Props) {
   const { data, total, stats, loading, filters, changeFilter, resetFilters, reload } = useTravelerBookings(token);
   const [selectedBooking, setSelectedBooking] = useState<TravelerBooking | null>(null);
   const { formatCurrencyIDR } = useLanguage();
+  
+  /* ========================================================================= */
+  /* NOTE LOGIC TERBARU: Menyelaraskan filter status "Selesai" agar mencakup      */
+  /* status COMPLETED dan CHECKED_OUT secara inklusif di sisi frontend/halaman.  */
+  /* ========================================================================= */
+  const filteredData = React.useMemo(() => {
+    if (!filters.status) return data;
+    const targetStatus = filters.status.toUpperCase();
+    
+    return data.filter(b => {
+      const currentStatus = b.status?.toUpperCase();
+      if (targetStatus === 'COMPLETED' || targetStatus === 'CHECKED_OUT' || targetStatus === 'SELESAI') {
+        return currentStatus === 'COMPLETED' || currentStatus === 'CHECKED_OUT';
+      }
+      return currentStatus === targetStatus;
+    });
+  }, [data, filters.status]);
+
+  /* ========================================================================= */
+  /* NOTE LOGIC TERBARU: Menghitung ulang statistik secara inklusif dan akurat   */
+  /* agar kotak dashboard "Reservasi Selesai" menghitung COMPLETED & CHECKED_OUT */
+  /* ========================================================================= */
+  const dynamicStats = React.useMemo(() => {
+    if (!data || data.length === 0) return stats;
+
+    const completedOrCheckedOutCount = data.filter(b => {
+      const st = b.status?.toUpperCase();
+      return st === 'COMPLETED' || st === 'CHECKED_OUT';
+    }).length;
+
+    return {
+      ...(stats || {}),
+      completed: completedOrCheckedOutCount,
+      checkedOut: completedOrCheckedOutCount // Menyelaraskan properti key statistik jika dipakai komponen lain
+    };
+  }, [data, stats]);
+
   const totalPages = Math.ceil(total / filters.limit) || 1;
 
   return (
     <div className="space-y-6">
-      <StatsSummary stats={stats} />
+      <StatsSummary stats={dynamicStats} />
       <FilterSection filters={filters} onChange={changeFilter} onReset={resetFilters} />
       <MainContent
         loading={loading}
-        data={data}
+        data={filteredData}
         isSearchActive={!!(filters.search || filters.status || filters.startDate || filters.endDate)}
         onReset={resetFilters}
         setSelectedBooking={setSelectedBooking}
@@ -36,7 +73,7 @@ export function TravelerBookingsPage({ token, onReview, onNavigate }: Props) {
         onReload={reload}
         onNavigate={onNavigate}
       />
-      {data.length > 0 && totalPages > 1 && (
+      {filteredData.length > 0 && totalPages > 1 && (
         <Pagination page={filters.page} totalPages={totalPages} onPageChange={(p) => changeFilter('page', p)} />
       )}
       {selectedBooking && <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} formatCurrency={formatCurrencyIDR} />}

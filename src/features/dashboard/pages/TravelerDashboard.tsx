@@ -29,6 +29,7 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
   const { idempotencyKey: reviewIdempKey, rotateKey: rotateReviewKey } = useIdempotency();
 
   const handleOpenReviewModal = (booking: any) => {
+    // Izinkan semua booking yang tombol review-nya aktif untuk langsung membuka modal
     setActiveReviewBooking(booking);
     setSelectedRating(5);
     setCommentText('');
@@ -65,7 +66,12 @@ export default function TravelerDashboard({ onNavigate }: TravelerDashboardProps
             : 'Sesi login Anda telah berakhir. Silakan masuk kembali untuk melanjutkan.'
         );
       } else {
-        setModalError(err.message || 'An error occurred.');
+        setModalError(
+          msg ||
+            (language === 'en'
+              ? 'Failed to submit your review. Please try again.'
+              : 'Gagal mengirim ulasan Anda. Silakan coba lagi.')
+        );
       }
     }
   };

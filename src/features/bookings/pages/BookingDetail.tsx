@@ -14,6 +14,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
   const { user, token } = useAuth();
   const { language } = useLanguage();
 
+  // LOGIC: Mengatur metadata judul dokumen dan deskripsi halaman secara dinamis berdasarkan bahasa.
   useDocumentMetadata({
     title: language === 'en' ? `Booking Invoice #${id}` : `Faktur Pemesanan #${id}`,
     description: language === 'en'
@@ -26,6 +27,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
   const [uploading, setUploading] = useState(false);
   const [paying, setPaying] = useState(false);
 
+  // LOGIC: Mengambil data detail pemesanan terkini dari server menggunakan token autentikasi.
   const fetchDetail = () => {
     setLoading(true);
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -43,10 +45,12 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
       });
   };
 
+  // LOGIC: Menjalankan pemanggilan data detail saat komponen dimuat atau ID/token berubah.
   useEffect(() => {
     fetchDetail();
   }, [id, token]);
 
+  // LOGIC: Memuat skrip Midtrans Snap secara dinamis ke halaman dan membersihkannya saat unmount.
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
@@ -60,6 +64,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     };
   }, []);
 
+  // LOGIC: Melakukan sinkronisasi pembayaran Midtrans dan memperbarui state data booking di latar belakang.
   const syncAndPollDetail = async (headers: HeadersInit) => {
     try {
       await fetch('/api/payments/midtrans/sync', {
@@ -75,6 +80,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     }
   };
 
+  // LOGIC: Menjalankan interval polling otomatis setiap 4 detik selama status pembayaran masih menunggu.
   useEffect(() => {
     if (booking?.status !== 'WAITING_PAYMENT') return;
     const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -82,6 +88,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     return () => clearInterval(interval);
   }, [id, token, booking?.status]);
 
+  // LOGIC: Meminta token Snap pembayaran Midtrans ke server untuk memulai transaksi baru.
   const fetchSnapToken = async () => {
     const res = await fetch('/api/payments/midtrans/create-transaction', {
       method: 'POST',
@@ -93,6 +100,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     return data.token;
   };
 
+  // LOGIC: Membuka jendela pop-up Midtrans Snap untuk memproses pembayaran pengguna.
   const openSnapUI = (snapToken: string) => {
     if (!(window as any).snap) throw new Error('Secure gateway loading...');
     (window as any).snap.pay(snapToken, {
@@ -103,6 +111,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     });
   };
 
+  // LOGIC: Mengelola proses utama pembayaran via Midtrans saat tombol bayar ditekan.
   const payWithMidtrans = async () => {
     setPaying(true);
     try {
@@ -115,6 +124,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     }
   };
 
+  // LOGIC: Memperbarui status pemesanan ke server (seperti konfirmasi, pembatalan, atau selesai).
   const updateStatus = (status: string) => {
     const headers: HeadersInit = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
     fetch(`/api/bookings/${id}/status`, {
@@ -127,6 +137,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
       .catch(err => alert(err.message));
   };
 
+  // LOGIC: Mengekstrak dan memformat tautan bukti pembayaran dari string JSON atau URL mentah.
   const getProofSrc = () => {
     const raw = booking?.paymentProof?.proofUrl;
     if (!raw) return '';
@@ -141,6 +152,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     return raw;
   };
 
+  // LOGIC: Menyusun payload data meta bukti pembayaran manual yang diunggah oleh pengguna.
   const buildManualProofPayload = (info: any) => JSON.stringify({
     url: info.url,
     originalName: info.originalName,
@@ -151,6 +163,7 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
     createdAt: new Date().toISOString()
   });
 
+  // LOGIC: Mengirimkan data bukti pembayaran manual ke server untuk diverifikasi.
   const submitManualProof = (info: any) => {
     setUploading(true);
     const body = JSON.stringify({ proofUrl: buildManualProofPayload(info) });
@@ -164,9 +177,11 @@ export default function BookingDetail({ id, onNavigate }: { id: string; onNaviga
       .finally(() => setUploading(false));
   };
 
+  // LOGIC: Menampilkan indikator loading atau pesan kesalahan jika data gagal dimuat.
   if (loading) return <div className="flex justify-center items-center py-24 text-indigo-900"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   if (error || !booking) return <div className="text-center py-20 text-rose-600 font-bold p-6 border rounded-xl m-10 bg-rose-50/50">{error || 'Booking sheet not found.'}</div>;
 
+  // LOGIC: Menentukan peran akses pengguna saat ini (tamu, pemilik properti, atau admin).
   const isGuest = booking.guestId === user?.id;
   const isHost = booking.property?.tenantId === user?.id;
   const isAdmin = user?.role === 'ADMIN';
